@@ -23,3 +23,4 @@
 #include "XRNUtils.h"
 #include "XRNCommonMessage.h"
 #include "XRNConnectRequest.h"
+#include "XRNConnectAccept.h"
