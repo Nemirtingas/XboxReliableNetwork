@@ -24,3 +24,4 @@
 #include "XRNCommonMessage.h"
 #include "XRNConnectRequest.h"
 #include "XRNConnectAccept.h"
+#include "XRNConnectComplete.h"
