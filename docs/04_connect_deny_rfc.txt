@@ -32,6 +32,10 @@ Status: Informational
    |                       Protocol version                        |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                                                               |
+   |                           Link Id                             |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
    |                       Deny Reason (Optional)                  |
    |                        (32-bit unsigned)                      |
    |                                                               |
@@ -55,7 +59,11 @@ Status: Informational
    Deny Reason is present.  Implementations MUST use the
    value to determine the presence of a Deny Reason.
 
-3.4. Deny Reason (Optional, Octets 5-8)
+3.4. Link Id (Optional, Octets 5-8)
+
+   The Link Id is a 32-bit unsigned integer in network byte order.
+
+3.5. Deny Reason (Optional, Octets 9-13)
 
    The Deny Reason is a 32-bit unsigned integer in network byte order.
    It indicates the reason why the connection request was denied.

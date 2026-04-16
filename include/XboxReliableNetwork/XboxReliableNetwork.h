@@ -25,3 +25,4 @@
 #include "XRNConnectRequest.h"
 #include "XRNConnectAccept.h"
 #include "XRNConnectComplete.h"
+#include "XRNConnectDeny.h"
