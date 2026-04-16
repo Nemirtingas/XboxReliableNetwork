@@ -1,0 +1,216 @@
+XBox Reliable Network Messaging Protocol - Connect Request Packet Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of the XBox Reliable Network
+   Messaging (XRNM) Protocol Connect Request packet.  This packet is
+   transmitted by an initiating endpoint to establish a new connection
+   with a remote endpoint.  The packet includes connection identifiers,
+   protocol negotiation, and endpoint configuration information
+   necessary for connection establishment.
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian), with bit
+   numbering from left to right (most significant to least significant
+   within each octet).
+
+3. Connect Request Packet Format
+
+   The Connect Request packet has the following format:
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |         Packet Length Hi      |         Packet Length Lo      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                      Packet Type (0x01)                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Protocol Version Major     |    Protocol Version Minor     |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                         wRecvPoolSize                         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        wNormalAckPeriod                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                         wLazyAckPeriod                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                        Local Link ID                          |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                      Current Timestamp                        |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                        dwMaxNumSendChannels                   |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                           Channels                            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                    Optional Fields (Variable)                 |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                       Payload (Variable)                      |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+3.1. Packet Length (Octets 0-1)
+
+   The Packet Length field is a 16-bit unsigned integer in network
+   byte order that indicates the total length of this packet in octets,
+   excluding the packet length field itself.  In the example, the value
+   0x00d5 represents a packet length of 213 octets.
+
+3.2. Packet Type (Octet 2)
+
+   The Packet Type field is set to 0x01 to indicate this is a
+   Connect Request packet.
+
+3.3. Protocol Version (Octets 3-4)
+
+   The Protocol Version field specifies the version of the XRNM
+   protocol in use.  The format consists of two octets: Major version
+   and Minor version.  In the example, version 1.5 is represented as
+   Major=0x01, Minor=0x05.
+
+3.4. Additional Settings (Octets 5-6) (Work In Progress)
+
+   This field contains endpoint configuration parameters derived from
+   the implementation's endpoint settings structure (field_82 0x0040).  These
+   parameters control endpoint behavior and capabilities.
+
+3.5. Endpoint Configuration (Octets 7-8) (Work In Progress)
+
+   This field contains endpoint configuration parameters derived from
+   the implementation's endpoint settings structure (field_7C 0x0004).  These
+   parameters control endpoint behavior and capabilities.
+
+3.6. Additional Settings (Octets 9-10) (Work In Progress)
+
+   This field contains endpoint configuration parameters derived from
+   the implementation's endpoint settings structure (field_7E 0x07D0).  These
+   parameters control endpoint behavior and capabilities.
+
+3.7. Local Link ID (Octets 11-14)
+
+   The Local Link ID is a 32-bit value that uniquely identifies this
+   endpoint's link.  This value MUST be randomly generated for each
+   new connection attempt.  The initiating endpoint uses this value to
+   identify traffic from the remote endpoint to itself.  In the
+   example, the Local Link ID is 0x27b66237.
+
+3.8. Current Timestamp (Octets 15-18)
+
+   The Current Timestamp is a 32-bit value representing the time at
+   which this packet was generated.  The timestamp format and scale
+   are implementation-dependent.  In the example, the value is
+   0x015b7b0b.
+
+3.9. Endpoint Settings (Octets 19-22)
+
+   This field contains additional endpoint settings derived from the
+   implementation's endpoint settings structure (field_18).  These
+   settings provide further configuration details.  The example value
+   0x00ffffff represents default settings.
+
+3.10. Channels Field (Octet 23)
+
+   The Channels field indicates which communication channels are
+   present in this connection request.
+
+   Bit 0 (C1): Channel 1 Present
+
+      If set to 1, indicates that Channel 1 is operational and
+      available for communication.  If set to 0, Channel 1 is not
+      present.
+
+   Bit 1 (C2): Channel 2 Present
+
+      If set to 1, indicates that Channel 2 is operational and
+      available for communication.  If set to 0, Channel 2 is not
+      present.
+
+   Bits 7-2: Reserved
+
+      These bits are reserved for future use and MUST be set to 0.
+
+3.11. Optional Fields (Offset 24 and beyond)
+
+   Additional optional fields MAY follow the fixed 24-octet header
+   based on the Channels field settings.  The order of fields is:
+
+   1. Channel 1 Data (if C1 flag is set in Channels field)
+   2. Channel 2 Data (if C2 flag is set in Channels field)
+   3. Payload Data (if present)
+
+3.11.1. Channel 1 Field (Optional, 2 octets)
+
+   If Bit 0 (C1) of the Channels field is set to 1, a 16-bit Channel 1
+   configuration field is present at offset 24.  This field contains
+   channel-specific settings and capabilities for Channel 1.
+
+   The example value 0x0003 represents Channel 1 configuration data.
+
+3.11.2. Channel 2 Field (Optional, 2 octets)
+
+   If Bit 1 (C2) of the Channels field is set to 1, a 16-bit Channel 2
+   configuration field is present.  The offset depends on whether
+   Channel 1 is also present:
+
+   - If C1=1 and C2=1: Channel 2 field starts at offset 26
+   - If C1=0 and C2=1: Channel 2 field starts at offset 24
+
+   This field contains channel-specific settings and capabilities for
+   Channel 2.
+
+3.11.3. Payload (Variable Length, Optional)
+
+   The Payload field, if present, contains application-specific data
+   transmitted as part of the Connect Request.  The payload starts
+   immediately after the channel fields (if any) and extends to the
+   end of the packet as determined by the Packet Length field.
+
+   The payload format is implementation-dependent and not specified by
+   this protocol document.  Endpoints MUST interpret the payload
+   according to their application layer protocol.  In the example, the
+   payload begins at offset 24 (or 26/28 if channels are present) and
+   contains application data.
+
+4. Message Ordering and Size Calculation
+
+   When constructing a Connect Request packet, implementations MUST
+   observe the following order for optional fields:
+
+   [Fixed Header: 24 octets]
+   [Channel 1: 2 octets, if C1=1]
+   [Channel 2: 2 octets, if C2=1]
+   [Payload: variable length, as needed]
+
+   The Packet Length field MUST reflect the total length of all
+   data following the 2-octet length field itself.
+
+5. Security Considerations
+
+   The Connect Request packet contains endpoint identifiers and
+   configuration information.  Care MUST be taken to validate these
+   fields before proceeding with connection establishment.  The random
+   Local Link ID serves as a nonce to prevent connection hijacking.
+
+   If payload data is present, implementations SHOULD validate that
+   the combined size of fixed header, channel fields, and payload
+   does not exceed implementation-defined limits to prevent denial of
+   service attacks.
+
+6. References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.

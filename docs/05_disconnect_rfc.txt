@@ -1,0 +1,116 @@
+XBox Reliable Network Messaging Protocol - Disconnect Packet Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of the XBox Reliable Network
+   Messaging (XRNM) Protocol Disconnect packet.
+
+   The Disconnect packet is used to signal the termination of an
+   established connection. It carries a connection identifier derived
+   from both peers, allowing validation of the connection context.
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian).
+
+3. Disconnect Packet Format
+
+   The Disconnect packet has the following fixed structure:
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Disconnect magic                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                      Packet Type (0x05)                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                      Link Identifier XOR                      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   Total size: 7 octets
+
+4. Field Definitions
+
+4.1. Disconnect magic (Octets 0-1)
+
+   This 16-bit field is set to the constant value 0x0500.
+
+   Unlike other packet types in the protocol, this field does NOT encode
+   the packet length. Its purpose is protocol-specific and MUST be set
+   exactly to 0x0500 by senders.
+
+   Receivers SHOULD validate this field and discard the packet if the
+   value does not match.
+
+4.2. Packet Type (Octet 2)
+
+   The Packet Type field MUST be set to 0x05 to indicate a Disconnect
+   packet.
+
+4.3. Link Identifier XOR (Octets 3-6)
+
+   This field is a 32-bit unsigned integer in network byte order.
+
+   It is computed as:
+
+      linkIdXor = localLinkId XOR remoteLinkId
+
+   This value uniquely identifies the connection context shared between
+   the two peers.
+
+   Receivers MAY use this field to validate that the Disconnect packet
+   corresponds to an existing connection.
+
+5. Protocol Operation
+
+   A Disconnect packet is sent when a peer wishes to terminate the
+   connection.
+
+   Upon sending a Disconnect packet:
+
+      - The sender SHOULD cease transmission of further packets
+      - The sender MAY immediately release connection state
+
+   Upon receiving a Disconnect packet:
+
+      - The receiver SHOULD validate the Link Identifier XOR
+      - If valid, the receiver MUST treat the connection as terminated
+      - The receiver SHOULD release associated resources
+
+   If the Link Identifier XOR does not match any known connection,
+   the packet SHOULD be ignored.
+
+6. Design Considerations
+
+   The use of a XOR-based link identifier provides:
+
+      - A lightweight mechanism for connection validation
+      - No need to transmit both link identifiers explicitly
+      - Reduced packet size
+
+   However, XOR is not collision-resistant and does not provide
+   cryptographic security.
+
+7. Security Considerations
+
+   The Disconnect packet does not provide authentication or integrity.
+
+   An attacker capable of guessing or observing link identifiers may
+   forge Disconnect packets.
+
+   Implementations SHOULD consider:
+
+      - Additional validation mechanisms
+      - Binding packets to authenticated sessions
+      - Ignoring Disconnect packets in unexpected states
+
+8. References
+
+   [RFC2119] Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.

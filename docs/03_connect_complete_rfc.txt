@@ -1,0 +1,158 @@
+XBox Reliable Network Messaging Protocol - Connect Complete Packet Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of the XBox Reliable Network
+   Messaging (XRNM) Protocol Connect Complete packet.  This packet is
+   transmitted by the initiating endpoint after receiving a Connect Accept
+   packet to finalize the three-way handshake.  The packet includes link
+   identifiers, timestamp information, and endpoint addressing information
+   (IPv4 or IPv6 with port) necessary for establishing bidirectional
+   communication.
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian), with bit
+   numbering from left to right (most significant to least significant
+   within each octet).
+
+3. Connect Complete Packet Format
+
+   The Connect Complete packet has the following fixed header structure:
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |         Packet Length Hi      |         Packet Length Lo      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                      Packet Type (0x03)                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |            Local Link ID XOR Remote Link ID                   |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                    Remote Begin Timestamp                     |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    Address Family                             |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    Remote Connection Address                  |
+   |                    (IPv4 or IPv6)                             |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                   Remote Connection Port                      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+3.1. Packet Length (Octets 0-1)
+
+   The Packet Length field is a 16-bit unsigned integer in network
+   byte order that indicates the total length of this packet in octets,
+   excluding the packet length field itself.  In the example, the value
+   0x0010 represents a packet length of 16 octets.
+
+3.2. Packet Type (Octet 2)
+
+   The Packet Type field is set to 0x03 to indicate this is a
+   Connect Complete packet.
+
+3.3. Local Link ID XOR Remote Link ID (Octets 3-6)
+
+   This field contains the bitwise XOR of the Local Link ID and Remote
+   Link ID values.  This provides a checksum verification that both
+   endpoints are using consistent link identifiers.  Specifically:
+
+      Value = (Local Link ID from Connect Request) XOR
+              (Remote Link ID echoed in Connect Accept)
+
+   In the example, this value is 0x0e0ca489, which can be verified by
+   XORing the two link IDs from the Connect Request and Connect Accept
+   packets.
+
+3.4. Remote Begin Timestamp (Octets 7-10)
+
+   The Remote Begin Timestamp is a 32-bit value that echoes the Current
+   Timestamp from the Connect Accept packet.  This allows the initiator to
+   acknowledge receipt of the responder's timestamp.  In the example, the
+   value is 0x19af6f61.
+
+3.5. Address Family (Octet 11)
+
+   The Address Family field specifies the format of the remote connection
+   address that follows.  Valid values are:
+
+      Value 1: IPv6 address format
+      Value 2: IPv4 address format
+
+   In the example, value 2 indicates an IPv4 address.
+
+3.6. Remote Connection Address (Variable Length)
+
+   The Remote Connection Address contains the network address of the
+   remote endpoint.  The length and format depend on the Address Family
+   field.
+
+3.6.1. IPv4 Address Format (Octets 12-15)
+
+   For IPv4 addresses, the address is represented as a 32-bit value
+   containing four octets in network byte order.  In the example, the
+   value 0x14211581 represents the IPv4 address 20.33.21.129.
+
+3.6.2. IPv6 Address Format (Octets 12-27)
+
+   For IPv6 addresses, the address is represented as 16 octets in
+   network byte order (128 bits).  In the example, the address would be
+   0x00112233445566778899aabbccddeeff.
+
+3.7. Remote Connection Port (Octets 16-17 for IPv4, 28-29 for IPv6)
+
+   The Remote Connection Port is a 16-bit unsigned integer in network
+   byte order specifying the UDP port number of the remote endpoint.
+   In the example, the value 0x787f represents port 30847 in decimal.
+
+4. Connection Establishment
+
+   The three-way handshake proceeds as follows:
+
+   1. Initiator sends Connect Request with Local Link ID (X) and
+      Current Timestamp (T_init)
+
+   2. Responder sends Connect Accept with:
+      - Remote Link ID set to X (echoing initiator's Local Link ID)
+      - Local Link ID set to Y (randomly generated)
+      - Current Timestamp (T_resp)
+
+   3. Initiator sends Connect Complete with:
+      - XOR of its Local Link ID (X) and the Remote Link ID (X) received
+        in Accept, which produces 0x00000000
+      - Remote Begin Timestamp = T_resp (from Accept packet)
+      - Remote Connection Address and Port of the responder
+
+   After this handshake completes successfully, both endpoints are ready
+   to exchange data packets.
+
+5. Security Considerations
+
+   The Connect Complete packet combines link identifiers and endpoint
+   addressing information.  The XOR field provides consistency checking
+   between endpoints.  Implementations MUST validate:
+
+   - The XOR field produces the expected value for link ID consistency
+   - The Address Family field indicates a supported address format
+   - The Remote Connection Port is within valid UDP port range (0-65535)
+   - IPv6 addresses comply with RFC 4291 formatting when used
+
+6. References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC4291]  Hinden, R. and S. Deering, "IP Version 6 Addressing
+              Architecture", RFC 4291, February 2006.                               
+

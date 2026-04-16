@@ -1,0 +1,161 @@
+XBox Reliable Network Messaging Protocol - Data Packet Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of the XBox Reliable Network
+   Messaging (XRNM) Protocol Data packet header.
+
+   The Data packet carries payload along with sequencing, acknowledgement,
+   subpacket flags, and optional gap/SACK information to support reliable delivery.
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" are to be
+   interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian).
+
+3. Data Packet Header Format
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |         Packet Length Hi      |         Packet Length Lo      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   | 0x80 + Flags (SP/SACK/GAP) / Sequence ID High Bits            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                     Sequence ID Low 8 Bits                    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   | Flags / Last Received Sequence ID High Bits                   |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |       Last Received Sequence ID Low 8 Bits                    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   | Optional Gap Field (if GAP flag set)                          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   | Optional SACK Field (if SACK flag set)                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                          Payload                              |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+4. Field Definitions
+
+4.1. Packet Length (Octets 0-1)
+
+   16-bit unsigned integer in network byte order.
+   Encodes the total Packet Length including optional fields.
+
+4.2. Control Byte (Octet 2)
+
+   Bit layout:
+
+      7   6   5   4   3   2   1   0
+    +---+---+---+---+---+---+---+---+
+    | 1 |ACK|ACK|RAK|SAK|GAP|  SEQ  |
+    +---+---+---+---+---+---+---+---+
+
+   - 1: Data packet type
+   - ACK (bits 6-5): Acknowledgement type
+     LazyAck: 1
+	 NormalAck: 2
+	 ImmediateAck: 3
+   - RAK (bit 4): Receipt Ack requested
+   - SACK (bit 3): Set if selective acknowledgement is present
+   - GAP (bit 2): Set if a gap field is present
+   - SEQ (bits 1-0): The two most significant bits of the 10-bit sequence number.
+
+4.3. Sequence Number (SEQ)
+
+   The SEQ is a 10-bit value representing the highest in-order
+   packet received.
+
+   It is encoded across octets 3 and 4 as follows:
+
+      SEQ = (Octet2[1:0] << 8) | Octet3
+
+4.4. Flags / Last Received Sequence ID High Bits (Octet 4)
+
+   Bit layout:
+
+      7   6   5   4   3   2   1   0
+    +---+---+---+---+---+---+---+---+
+    |          NCD          |  SEQ  |
+    +---+---+---+---+---+---+---+---+
+
+   - NCD (bits 7-2): The Network Compressed Delta.
+     0-7  : The exact delta
+	 8-15 : Deltas grouped by 8
+	 16-63: Deltas grouped by 32
+   - SEQ (bits 1-0): The two most significant bits of the 10-bit last sequence number.
+
+4.5. Last Received Sequence ID Low 8 Bits (Octet 5)
+
+   The Last Received Sequence ID is a 10-bit value representing the latest in-order
+   packet received.
+
+   It is encoded across octets 3 and 4 as follows:
+
+      SEQ = (Octet4[1:0] << 8) | Octet5
+
+4.6. Optional Gap Field
+
+   Present if GAP flag is set in the Control Byte.
+   Encodes lost packet sequences to allow the receiver to detect missing packets.
+
+4.7. Optional SACK Field
+
+   Present if SACK flag is set in the Control Byte.
+   Carries selective acknowledgement information to indicate which packets
+   have been received.
+
+4.8. Payload
+
+   The payload immediately follows the header and optional fields.
+   Contains the data intended for delivery. Its length is determined by
+   subtracting the header length from the total packet length.
+
+5. Protocol Operation
+
+   XRNM Data packets are exchanged to:
+
+   - Deliver reliable application payloads
+   - Acknowledge received packets (ACK)
+   - Report selective acknowledgments for out-of-order packets (SACK)
+   - Report missing packet gaps (GAP)
+   - Support subpacket transmissions (SUB) when large payloads are fragmented
+   - Carry control flags and sequence numbers for reliable delivery
+
+   Data Packet Exchange Mechanism:
+
+   Each Data packet contains a Control Byte encoding ACK type, SACK, GAP, and SUB flags.  
+   The ACK type field MUST be set according to the sender's acknowledgment of received packets:
+
+      0 = No ACK
+      1 = Partial ACK (for subpacket or incomplete reception)
+      2 = Normal ACK (for standard packet acknowledgment)
+      3 = Full ACK (all data received)
+
+   Receivers MUST process the ACK, SACK, and GAP fields to:
+
+      - Update their local acknowledgment state
+      - Identify missing packets and request retransmission
+      - Maintain correct sequence for subpacket reassembly
+      - Ensure reliable delivery of payloads
+
+   Subpacket Support:
+
+   When a payload is fragmented, SUB flag(s) in the Control Byte indicate that the packet is part of a larger message.  
+   The sender MUST track subpacket boundaries and sequence numbers, while the receiver MUST reassemble the subpackets in order to reconstruct the original message.
+
+   Implementations SHOULD use the ACK, SACK, GAP, and SUB information to optimize retransmission schedules, detect network loss patterns, and maintain connection quality.
+
+6. Design Considerations
+
+   - The header is compact and supports variable-length optional fields.
+   - High-order packet sequence bits are embedded in multiple header bytes
+     to allow correct ordering and acknowledgement.
+   - GAP and SACK fields improve reliability over lossy connections.

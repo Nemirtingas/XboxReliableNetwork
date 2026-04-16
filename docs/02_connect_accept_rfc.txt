@@ -1,0 +1,321 @@
+XBox Reliable Network Messaging Protocol - Connect Accept Packet Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of the XBox Reliable Network
+   Messaging (XRNM) Protocol Connect Accept packet.  This packet is
+   transmitted by a receiving endpoint in response to a Connect Request
+   packet to acknowledge the connection initiation and establish bidirectional
+   communication.  The packet includes both endpoints' link identifiers,
+   timestamps, and configuration information necessary for connection
+   establishment.
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian), with bit
+   numbering from left to right (most significant to least significant
+   within each octet).
+
+3. Connect Accept Packet Format
+
+   The Connect Accept packet has the following format:
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |         Packet Length Hi      |         Packet Length Lo      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                      Packet Type (0x02)                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Protocol Version Major     |    Protocol Version Minor     |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                         wRecvPoolSize                         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        wNormalAckPeriod                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        wLazyAckPeriod                         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                       Remote Link ID                          |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                        Local Link ID                          |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                  Request Timestamp Delta                      |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                      Current Timestamp                        |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                      dwMaxNumSendChannels                     |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |C1|C2|Resv|Resv|Resv|Resv|I6|I4|       Channels Field          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Optional Channel 1                     |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Optional Channel 2                     |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Optional Remote IPv4 Address           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Optional Remote IPv6 Address           |
+   |                                                               |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Optional Remote Port                   |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Optional Payload                       |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+3.1. Packet Length (Octets 0-1)
+
+   The Packet Length field is a 16-bit unsigned integer in network
+   byte order that indicates the total length of this packet in octets,
+   excluding the packet length field itself.  In the example, the value
+   0x002b represents a packet length of 43 octets.
+
+3.2. Packet Type (Octet 2)
+
+   The Packet Type field is set to 0x02 to indicate this is a
+   Connect Accept packet.
+
+3.3. Protocol Version (Octets 3-4)
+
+   The Protocol Version field specifies the version of the XRNM
+   protocol in use.  The format consists of two octets: Major version
+   and Minor version.  In the example, version 1.5 is represented as
+   Major=0x01, Minor=0x05.  This MUST match or be compatible with
+   the version in the corresponding Connect Request.
+
+3.4. Additional Settings (Octets 5-6) (Work In Progress)
+
+   This field contains endpoint configuration parameters derived from
+   the implementation's endpoint settings structure (field_82 0x0040).  These
+   parameters control endpoint behavior and capabilities.
+
+3.5. Endpoint Configuration (Octets 7-8) (Work In Progress)
+
+   This field contains endpoint configuration parameters derived from
+   the implementation's endpoint settings structure (field_7C 0x0004).  These
+   parameters control endpoint behavior and capabilities.
+
+3.6. Additional Settings (Octets 9-10) (Work In Progress)
+
+   This field contains endpoint configuration parameters derived from
+   the implementation's endpoint settings structure (field_7E 0x07D0).  These
+   parameters control endpoint behavior and capabilities.
+
+3.7. Remote Link ID (Octets 11-14)
+
+   The Remote Link ID is a 32-bit value that echoes the Local Link ID
+   from the corresponding Connect Request packet.  This value is used
+   to identify traffic from the responding endpoint to the initiating
+   endpoint.  In the example, the Remote Link ID is 0x27b66237.
+
+3.8. Local Link ID (Octets 15-18)
+
+   The Local Link ID is a 32-bit value that uniquely identifies this
+   endpoint's link.  This value MUST be randomly generated for the
+   response and MUST be different from the Remote Link ID.  In the
+   example, the Local Link ID is 0x29bac6be.
+
+3.9. Request Timestamp Delta (Octets 19-22)
+
+   The Request Timestamp Delta is a 32-bit value representing the time
+   difference between the respondent's current time and the timestamp
+   received in the Connect Request packet.  This allows the respondent
+   to communicate its time offset relative to the initiator.  In the
+   example, the value is 0x015b7b0b.
+
+3.10. Current Timestamp (Octets 23-26)
+
+   The Current Timestamp is a 32-bit value representing the time at
+   which this packet was generated.  The timestamp format and scale
+   are implementation-dependent.  In the example, the value is
+   0x19af6f61.
+
+3.11. Endpoint Settings (Octets 27-30)
+
+   This field contains additional endpoint settings derived from the
+   implementation's endpoint settings structure (field_18).  These
+   settings provide further configuration details.  The example value
+   0x00ffffff represents default settings.
+
+3.12. Channels Field (Octet 31)
+
+   The Channels field indicates which communication channels and address
+   families are present in this connection response.
+
+   Bit 0 (C1): Channel 1 Present
+
+      If set to 1, indicates that Channel 1 is operational and
+      available for communication.  If set to 0, Channel 1 is not
+      present.
+
+   Bit 1 (C2): Channel 2 Present
+
+      If set to 1, indicates that Channel 2 is operational and
+      available for communication.  If set to 0, Channel 2 is not
+      present.
+
+   Bits 5-2: Reserved
+
+      These bits are reserved for future use and MUST be set to 0.
+
+   Bit 6 (I6): IPv6 Present
+
+      If set to 1, indicates that an IPv6 address field is present
+      in the optional fields section.  If set to 0, no IPv6 address
+      is provided.
+
+   Bit 7 (I4): IPv4 Present
+
+      If set to 1, indicates that an IPv4 address field is present
+      in the optional fields section.  If set to 0, no IPv4 address
+      is provided.
+
+   NOTE: The I4 and I6 flags are mutually exclusive.  Exactly one of
+   these flags MUST be set in a valid packet.  The example value 0x81
+   indicates C1 (0x01) and I4 (0x80) are both set.
+
+3.13. Optional Fields (Offset 32 and beyond)
+
+   Additional optional fields MAY follow the fixed 32-octet header
+   based on the Channels field settings.  The order of fields is:
+
+   1. Channel 1 Data (if C1 flag is set)
+   2. Channel 2 Data (if C2 flag is set)
+   3. IPv4 or IPv6 Address (if I4 or I6 flag is set)
+   4. Port Number (if I4 or I6 flag is set)
+   5. Payload Data (if present)
+
+3.13.1. Channel 1 Field (Optional, 2 octets)
+
+   If Bit 0 (C1) of the Channels field is set to 1, a 16-bit Channel 1
+   configuration field is present at offset 32.  This field contains
+   channel-specific settings and capabilities for Channel 1.
+
+   The example value 0x0002 represents Channel 1 configuration data.
+
+3.13.2. Channel 2 Field (Optional, 2 octets)
+
+   If Bit 1 (C2) of the Channels field is set to 1, a 16-bit Channel 2
+   configuration field is present.  The offset depends on whether
+   Channel 1 is also present:
+
+   - If C1=1 and C2=1: Channel 2 field starts at offset 34
+   - If C1=0 and C2=1: Channel 2 field starts at offset 32
+
+   This field contains channel-specific settings and capabilities for
+   Channel 2.
+
+3.13.3. IPv4 Address Field (Optional, 4 octets)
+
+   If Bit 7 (I4) of the Channels field is set to 1, a 32-bit IPv4
+   address field is present.  The offset depends on the number of
+   channel fields present (0, 2, or 4 octets).
+
+   The IPv4 address is represented as a 32-bit value in network byte
+   order.  In the example, the value 0x11223344 represents an IPv4
+   address in dotted-decimal form as 17.34.51.68.
+
+3.13.4. IPv6 Address Field (Optional, 16 octets)
+
+   If Bit 6 (I6) of the Channels field is set to 1, a 128-bit IPv6
+   address field is present.  The offset depends on the number of
+   channel fields present (0, 2, or 4 octets).
+
+   The IPv6 address is represented as 16 octets in network byte order.
+   In the example, the address would be represented as
+   0x00112233445566778899aabbccddeeff.
+
+   NOTE: The I4 and I6 fields are mutually exclusive.
+
+3.13.5. Port Field (Optional, 2 octets)
+
+   If either Bit 7 (I4) or Bit 6 (I6) of the Channels field is set to 1,
+   a 16-bit Port field is present.  This field contains the UDP port
+   number of the responding endpoint in network byte order.
+
+   The port follows immediately after the IPv4 or IPv6 address field.
+   In the example, the value 0xf865 represents port 63589 in decimal.
+
+3.13.6. Payload (Variable Length, Optional)
+
+   The Payload field, if present, contains application-specific data
+   transmitted as part of the Connect Accept.  The payload starts
+   immediately after the port field (if present) or after the fixed
+   header if no address/port information is present.
+
+   The payload format is implementation-dependent and not specified by
+   this protocol document.  In the example, the value 0x02030d0000
+   represents implementation-specific payload data that requires
+   further research for complete understanding.
+
+   Endpoints MUST interpret the payload according to their application
+   layer protocol.
+
+4. Message Ordering and Size Calculation
+
+   When constructing a Connect Accept packet, implementations MUST
+   observe the following order for optional fields:
+
+   [Fixed Header: 32 octets]
+   [Channel 1: 2 octets, if C1=1]
+   [Channel 2: 2 octets, if C2=1]
+   [IPv4 or IPv6: 4 or 16 octets, if I4=1 or I6=1]
+   [Port: 2 octets, if I4=1 or I6=1]
+   [Payload: variable length, as needed]
+
+   The Packet Length field MUST reflect the total length of all
+   data following the 2-octet length field itself.
+
+5. Connection State Transitions
+
+   Upon receipt of a Connect Request with Link ID X, the receiving
+   endpoint MUST generate a Connect Accept packet containing:
+
+   - Remote Link ID = X (echoing the initiator's Local Link ID)
+   - Local Link ID = Y (a newly generated random value)
+   - Request Timestamp Delta and Current Timestamp for synchronization
+   - Channels field indicating supported channels and address families
+   - Optional IPv4 or IPv6 address and port information
+
+   The initiating endpoint, upon receipt of this Connect Accept packet,
+   MUST verify that the Remote Link ID matches its transmitted Local Link ID.
+
+6. Security Considerations
+
+   The Connect Accept packet contains bidirectional link identifiers,
+   synchronization information, and endpoint addressing.  Care MUST be
+   taken to validate:
+
+   - The Remote Link ID matches the Local Link ID sent in the Request
+   - The I4 and I6 flags are not both set (mutually exclusive)
+   - IPv4/IPv6 addresses conform to their respective formats
+   - Ports are within valid UDP range (0-65535)
+   - Combined size of all fields does not exceed implementation limits
+
+   The random Link ID values serve to prevent connection hijacking and
+   replay attacks.
+
+7. References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC4291]  Hinden, R. and S. Deering, "IP Version 6 Addressing
+              Architecture", RFC 4291, February 2006.
+

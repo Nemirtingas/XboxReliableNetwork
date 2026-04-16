@@ -1,0 +1,207 @@
+XBox Reliable Network Messaging Protocol - Data/ACK Packet Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of the XBox Reliable Network
+   Messaging (XRNM) Protocol Data/ACK (Data Acknowledge) packet.  The
+   Data/ACK packet is the primary workhorse for acknowledgment and
+   control information within an established connection.  It carries
+   acknowledgment (ACK) information and selective acknowledgments (SACK)
+   for out-of-order packet receipt.
+
+   Unlike the Link Probe packet, the Data/ACK packet does not support
+   GAP fields and maintains a simpler, more efficient header structure.
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian), with bit
+   numbering from left to right (most significant to least significant
+   within each octet).
+
+3. Data/ACK Packet Format
+
+   The Data/ACK packet has the following fixed header structure:
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |         Packet Length Hi      |         Packet Length Lo      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |      Packet Type              |          Data/ACK Flags       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |      NCD               |Seq HI| SEQ Low                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                          SACK Field                           |
+   |                      (Variable Length,                        |
+   |                       if S flag is set)                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+3.1. Packet Length (Octets 0-1)
+
+   The Packet Length field is a 16-bit unsigned integer in network
+   byte order that indicates the total length of the packet excluding
+   the Packet Length field itself. This length covers all data starting
+   from octet 2.
+
+3.2. Packet Type (Octet 2)
+
+   The Packet Type field MUST be set to 0x06 to indicate a Data/ACK
+   packet.
+
+3.3. Data/ACK Flags (Octet 3)
+
+   This octet contains both control information and part of the
+   acknowledgment sequence number.
+
+   Bit 1 (0x02): SACK Present (S flag)
+      1: A SACK field follows the fixed header
+      0: No SACK field is present
+
+3.4. Network Compressed Delta and Sequence High Bits (Octet 4)
+
+   Bits 7-2: Network Compressed Delta (6 bits)
+     0-7  : The exact delta
+	 8-15 : Deltas grouped by 8
+	 16-63: Deltas grouped by 32
+
+   Bits 1-0: ACK Sequence High Bits
+      The two most significant bits of the 10-bit ACK sequence number.
+
+3.5. Acknowledgment Sequence Number (ACK_SEQ)
+
+   The ACK_SEQ is a 10-bit value representing the highest in-order
+   packet received.
+
+   It is encoded across octets 3 and 4 as follows:
+
+      ACK_SEQ = (Octet4[1:0] << 8) | Octet5
+
+3.6. SACK Field (Variable Length, Optional)
+
+   The SACK field is present if the S flag (bit 1 of octet 3) is set.
+
+   It encodes selective acknowledgments for packets received
+   out-of-order beyond ACK_SEQ.
+
+   Encoding:
+
+      Each byte in the SACK field encodes:
+
+         Bit 7 (MSB): End-of-SACK indicator
+            1: This is the last SACK byte
+            0: More bytes follow
+
+         Bits 6-0: Packet reception bitmap (7 bits)
+            1: Packet received
+            0: Packet not received
+
+      Each byte represents 7 packets.
+
+   Reference Base:
+
+      basePacketId = ACK_SEQ + 1
+
+      Bits map sequentially to increasing packet sequence numbers.
+
+   Size Constraints:
+
+      Maximum size: 37 bytes
+      Maximum coverage: 259 packets
+
+4. Acknowledgment Tracking
+
+   The Data/ACK packet communicates reception state using:
+
+      ACK_SEQ: highest in-order packet received
+      SACK:    reception status beyond ACK_SEQ
+
+   Conceptual variables:
+
+      basePacketId: starting point for SACK interpretation
+      nextExpected: next missing in-order packet
+
+   ACK_SEQ advances only when all lower sequence numbers have been
+   received.
+
+5. Protocol Operation
+
+   Data/ACK packets are the primary acknowledgment mechanism:
+
+      - Acknowledge in-order packets via ACK_SEQ
+      - Report out-of-order packets via SACK
+      - Enable retransmission decisions
+      - Provide congestion and loss feedback
+
+   Implementations SHOULD send Data/ACK packets promptly upon
+   receiving new data.
+
+   Implementations MUST process ACK and SACK to:
+
+      - Advance the send window
+      - Identify lost packets
+      - Trigger selective retransmissions
+
+6. SACK Field Details
+
+   The SACK field is used only when out-of-order packets are received.
+
+   Behavior:
+
+      - S flag MUST be set if SACK is present
+      - SACK SHOULD NOT be sent if no out-of-order packets exist
+
+   Encoding Rules:
+
+      - 7 packets per byte
+      - Last byte indicated via MSB = 1
+      - Bits map starting at ACK_SEQ + 1
+
+7. Packet Size Constraints
+
+   Limits include:
+
+      - Packet Length field: max 65535 octets
+      - Transport constraints (e.g., UDP MTU)
+      - Implementation-specific limits
+
+   Typical sizes:
+
+      Minimum: 6 octets
+      Maximum: 43 octets
+
+8. Security Considerations
+
+   This protocol provides no built-in authentication or integrity.
+
+   Implementations SHOULD use:
+
+      - Authentication mechanisms
+      - Integrity protection (e.g., HMAC)
+      - Replay protection
+      - Sequence validation
+
+   Sequence Number Wrap-around:
+
+      ACK_SEQ is 10-bit (0-1023).
+
+      Implementations MUST handle wrap-around correctly and SHOULD
+      track sequence progression.
+
+   SACK Validation:
+
+      Receivers MUST validate:
+
+         - SACK length
+         - Packet range consistency
+         - No overflow beyond valid sequence space
+
+9. References
+
+   [RFC2119] Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.

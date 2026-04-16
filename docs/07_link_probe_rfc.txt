@@ -1,0 +1,411 @@
+XBox Reliable Network Messaging Protocol - Link Probe Packet Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of the XBox Reliable Network
+   Messaging (XRNM) Protocol Link Probe packet.  The Link Probe packet
+   is used for continuous communication once a connection is established.
+   It supports a probe request/response (ping/pong) mechanism for
+   connectivity testing and carries optional acknowledgment (ACK)
+   information, selective acknowledgments (SACK) for out-of-order packet
+   receipt, and gap information for missing packets.  The packet MAY also
+   carry payload data.
+
+   The packet format is version-dependent, with the "Reversed Order"
+   interpretation determined by the Protocol Version negotiated during
+   connection establishment.
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian), with bit
+   numbering from left to right (most significant to least significant
+   within each octet).
+
+   ReversedOrder Flag: A boolean value derived from the Protocol Version
+   fields received in the Connect Request/Accept packets that determines
+   how certain packet fields are interpreted.
+
+3. Protocol Version-Dependent Interpretation
+
+   The Link Probe packet format is interpreted differently based on the
+   Protocol Version negotiated during connection establishment.  The
+   ReversedOrder flag is computed from the Protocol Version Major and
+   Minor fields as follows:
+
+   ReversedOrder Determination Algorithm:
+
+      Let MAJOR = Protocol Version Major octet
+      Let MINOR = Protocol Version Minor octet
+
+      IF MINOR == 0:
+         ReversedOrder = TRUE
+      ELSE IF MINOR == 1 AND MAJOR < 3:
+         ReversedOrder = TRUE
+      ELSE:
+         ReversedOrder = FALSE
+
+   This flag determines how the packet parser interprets certain fields.
+   When ReversedOrder is TRUE, field interpretation follows one order;
+   when FALSE, fields follow the standard order as defined in this
+   document.
+
+   Specifically, the ReversedOrder flag affects the ordering of the
+   optional GAP and SACK fields:
+
+   When ReversedOrder = FALSE (standard order):
+      [Fixed Header] -> [SACK (if S=1)] -> [GAP (if G=1)] -> [Payload]
+
+   When ReversedOrder = TRUE (reversed order):
+      [Fixed Header] -> [GAP (if G=1)] -> [SACK (if S=1)] -> [Payload]
+
+   Version Examples:
+
+      - Protocol Version 0.x (MAJOR=0, any MINOR): ReversedOrder = FALSE
+      - Protocol Version 1.0 (MAJOR=1, MINOR=0): ReversedOrder = TRUE
+      - Protocol Version 1.1 (MAJOR=1, MINOR=1): ReversedOrder = TRUE
+      - Protocol Version 1.5 (MAJOR=1, MINOR=5): ReversedOrder = FALSE
+      - Protocol Version 2.x (MAJOR=2, any MINOR > 0): ReversedOrder = FALSE
+      - Protocol Version 3.0+ (MAJOR>=3, any MINOR): ReversedOrder = FALSE
+
+   Implementations MUST negotiate the protocol version during connection
+   establishment (via Connect Request and Connect Accept packets) and apply
+   the appropriate interpretation when parsing Link Probe packets.
+
+4. Link Probe Packet Format
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |         Packet Length Hi      |         Packet Length Lo      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |      Packet Type              |   Control Flags        | Seq  |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    SEQ Low    | ACK Control   |     ACK SEQ Low    | ACK Seq  |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                    Variable Length Payload                    |
+   |                    (including GAP and SACK)                   |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+4.1. Packet Length (Octets 0-1)
+
+   The Packet Length field is a 16-bit unsigned integer in network
+   byte order that indicates the total length of the packet EXCLUDING
+   the packet length field itself.  This is the length of all subsequent
+   data starting from octet 2.
+
+4.2. Packet Type (Octet 2)
+
+   The Packet Type field is set to 0x07 to indicate this is a Link Probe
+   packet.
+
+4.3. Control Flags (Octet 3)
+
+   The Control Flags byte specifies which optional fields are present in
+   this packet:
+
+      P (Bit 7, value 0x80): Probe Flag
+         When set to 1, indicates this packet is a probe request (ping)
+         initiated by the sender.  When set to 0, indicates this packet
+         is a probe response (pong) to a previously received probe request.
+
+      S (Bit 6, value 0x40): SACK Present
+         When set to 1, indicates that a Selective Acknowledgment
+         (SACK) field follows the fixed header.  When set to 0, no
+         SACK field is present.
+
+      G (Bit 5, value 0x20): GAP Present
+         When set to 1, indicates that a GAP field follows the fixed
+         header (or follows the SACK field if S is also set).  When set
+         to 0, no GAP field is present.
+
+      Bits 4-2: Reserved
+         These bits are reserved for future use and MUST be set to 0.
+
+4.4. Sequence Number Fields
+
+   The sequence number information is distributed across multiple octets
+   and bit fields.
+
+4.4.1. Current Packet Sequence Number (10 bits)
+
+   This is the sequence number of the current packet.  The 10-bit value
+   is split across:
+      - Bits 1-0 (of octet 3): High 2 bits
+      - Octet 4: Low 8 bits
+
+      SEQ = (Octet3[1:0] << 8) | Octet4
+
+4.4.2. ACK Control Flags (Octet 5)
+
+   The ACK Control Flags byte contains control flags and part of the
+   acknowledgment sequence number:
+
+      Bits 7-2: ACK Control Flags (6 bits)
+         These bits are reserved for control flags related to
+         acknowledgments. Specific flag definitions may be added in
+         future protocol versions.
+
+      Bits 1-0: High 2 Bits of ACK_SEQ
+         These bits are the high 2 bits of the 10-bit Acknowledgment
+         Sequence Number.
+
+4.4.3. Acknowledgment Sequence Number (10 bits)
+
+   This is the acknowledgment sequence number, representing the last
+   in-order packet received.  The 10-bit value is split across:
+      - Bits 1-0 (of octet 5): High 2 bits
+      - Octet 6: Low 8 bits
+
+      ACK_SEQ = (Octet5[1:0] << 8) | Octet6
+
+4.5. GAP Field (Variable Length)
+
+   The GAP field is present if the G flag (bit 5 of octet 3) is set to 1.
+   This field encodes information about missing packets following the
+   last acknowledged packet.
+
+   Encoding:
+
+      Each byte in the GAP field encodes 7 packets:
+         - Bits 6-0: Seven packets (bit 0 represents the first packet)
+         - Bit 1: 1 = packet present, 0 = packet missing
+         - Bit 0: Similar packet presence indicator
+         - Bit 7 (MSB): End-of-GAP indicator
+            * When 1 on the last byte, indicates no more GAP bytes follow
+            * When 0, more GAP bytes follow
+
+      Maximum GAP field size: 37 bytes (encoding up to 259 packets)
+
+   Position:
+
+      The position of the GAP field depends on the ReversedOrder flag:
+
+      When ReversedOrder = FALSE (standard order):
+         The GAP field starts immediately after the fixed 11-octet header
+         (offset 11) if no SACK field is present, or immediately after the
+         SACK field if the S flag is set.
+
+      When ReversedOrder = TRUE (reversed order):
+         The GAP field starts immediately after the fixed 11-octet header
+         (offset 11) and the SACK field (if present) follows after it.
+
+4.6. SACK Field (Variable Length)
+
+   The SACK field is present if the S flag (bit 6 of octet 3) is set to 1.
+   This field encodes Selective Acknowledgment information for packets
+   received out-of-order beyond the last in-order packet indicated by
+   ACK_SEQ.
+
+   Encoding:
+
+      Each byte in the SACK field encodes 7 packet acknowledgment states:
+         - Bits 6-0: Seven packets relative to basePacketId
+         - Bit 1: 1 = packet received, 0 = packet not yet received
+         - Bit 0: Similar packet received indicator
+         - Bit 7 (MSB): End-of-SACK indicator
+            * When 1 on the last byte, indicates no more SACK bytes
+            * When 0, more SACK bytes follow
+
+      The basePacketId is typically equal to or less than the ACK_SEQ
+      value and serves as the reference point for interpreting the
+      SACK bitmaps.
+
+      Maximum SACK field size: 37 bytes
+
+   Position:
+
+      The position of the SACK field depends on the ReversedOrder flag:
+
+      When ReversedOrder = FALSE (standard order):
+         The SACK field starts immediately after the fixed 11-octet header
+         (offset 11).  If a GAP field is also present (G=1), the SACK field
+         precedes the GAP field.
+
+      When ReversedOrder = TRUE (reversed order):
+         The SACK field starts immediately after the fixed 11-octet header
+         (offset 11) if no GAP field is present, or immediately after the
+         GAP field if the G flag is set.
+
+4.7. Payload (Variable Length - Fixed 4 Octets for Probes)
+
+   The optional payload data begins after the fixed header and any GAP/
+   SACK fields.  The position of the payload relative to GAP and SACK
+   fields follows the same ordering rules as those fields - if ReversedOrder
+   is TRUE, the payload follows the appropriate field in the reversed order;
+   if ReversedOrder is FALSE, the payload follows the fields in standard
+   order.
+
+   When this packet is a Link Probe (either request or response), the
+   payload MUST be a fixed 4-octet (32-bit) unsigned integer in network
+   byte order, referred to as the Probe Sequence Number.
+
+4.7.1. Probe Sequence Number
+
+   The Probe Sequence Number is a 32-bit unsigned integer that serves to
+   track probe exchanges and detect lost probes:
+
+   Generation:
+
+      The initial Probe Sequence Number is a random 32-bit value selected
+      during connection establishment by the endpoint that initiates the
+      probe mechanism.
+
+   Increment:
+
+      After each probe request (P=1) is sent, or after a probe response
+      (P=0) is received, the Probe Sequence Number is incremented by 1.
+      This allows the receiver to detect if probes have been missed.
+
+   Probe Request (P=1):
+
+      When an endpoint sends a Link Probe with P=1 (probe request/ping),
+      the Probe Sequence Number in the payload is the current sequence
+      number.  After sending the probe request, the sender increments
+      the Probe Sequence Number by 1 for use in subsequent probes.
+
+   Probe Response (P=0):
+
+      When an endpoint receives a Link Probe with P=1, it MUST respond
+      with a Link Probe packet with P=0 (probe response/pong).  The
+      responding endpoint MUST echo back the SAME Probe Sequence Number
+      received in the probe request.  The responder does NOT increment
+      the Probe Sequence Number when responding to a probe request.
+
+   Probe Timeout/Miss:
+
+      If a probe request (P=1) is not answered within a specified timeout
+      period, the sender SHOULD increment the Probe Sequence Number by 1
+      and send the next probe request with the new sequence number.  This
+      allows detection of consecutive missed probes.
+
+   Example Sequence:
+
+      Initiator sends Probe Request (P=1) with Sequence=100
+      Responder sends Probe Response (P=0) with Sequence=100
+      Initiator increments to 101 for next probe
+      Initiator cannot send Probe Request (P=1) with Sequence=101 until
+         timeout occurs or previous probe is acknowledged
+
+4.8. Bit Field Visualization
+
+   A single byte in the GAP or SACK field has the following format:
+
+      Bit:     7    6    5    4    3    2    1    0
+               E   P6   P5   P4   P3   P2   P1   P0
+
+      Where:
+         E = End-of-field indicator (1 = last byte of this field)
+         Pn = Packet state (encoding depends on whether GAP or SACK)
+
+      For GAP:  Pn = 1 -> packet present, 0 -> gap (missing)
+      For SACK: Pn = 1 -> packet received, 0 -> packet missing
+
+5. Sequence Number Tracking
+
+   The Link Probe packet uses several related sequence numbers:
+
+   - SEQ: The transmission sequence number of the current packet
+   - ACK_SEQ: The last in-order packet number successfully received
+             by the sender; also known as m_lastPacketId
+   - Probe Sequence Number: A 32-bit counter in the 4-octet payload
+             that tracks probe requests and responses; used to detect
+             missed probes and measure latency
+   - basePacketId: A reference point for interpreting GAP/SACK bitmaps,
+                   typically equal to ACK_SEQ or slightly higher
+   - nextExpected: The upper bound sequence number for valid SACK/GAP
+                   entries
+
+   The ACK_SEQ field communicates to the remote peer the highest packet
+   received in order.  The SACK field then communicates which packets
+   beyond ACK_SEQ have been received.  The GAP field communicates which
+   packets between the previous ACK and the current position are missing.
+
+   The Probe Sequence Number is used independently from the SEQ/ACK_SEQ
+   packet sequence numbers.  It serves to track the probe exchange
+   handshake and allows detection of lost probe requests.
+
+6. Protocol Operation
+
+   Link Probe packets are exchanged after connection establishment to:
+
+   - Perform probe request (ping) and response (pong) exchange (P flag)
+   - Track probe exchanges via Probe Sequence Number in payload
+   - Measure latency and detect missed probes
+   - Acknowledge received packets (ACK_SEQ field)
+   - Report selective acknowledgments for out-of-order packets (SACK)
+   - Report missing packet gaps (GAP)
+   - Transmit application payload data
+
+   Probe Exchange Mechanism:
+
+   A Link Probe packet with P=1 is a probe request (ping) that includes
+   a 4-octet Probe Sequence Number in its payload.  The recipient MUST
+   respond with a Link Probe packet with P=0 (probe response/pong),
+   echoing the SAME Probe Sequence Number from the request and including
+   appropriate ACK, SACK, and GAP information.
+
+   The Probe Sequence Number starts at a random value selected during
+   connection establishment and is incremented by 1 after each probe
+   request is sent or each probe timeout occurs.  This allows endpoints
+   to detect when probes have been lost and measure round-trip time based
+   on when responses are received.
+
+   Implementations SHOULD process ACK, SACK, and GAP information to
+   guide retransmission schedules and connection quality assessment.
+
+7. Version-Dependent Behavior
+
+   The ReversedOrder flag derived from the Protocol Version affects how
+   implementations parse and validate Link Probe packets.  Most notably,
+   when ReversedOrder is TRUE, the ordering of the optional GAP and SACK
+   fields is reversed:
+
+      Standard Order (ReversedOrder = FALSE):
+         SACK field (if present) comes before GAP field (if present)
+
+      Reversed Order (ReversedOrder = TRUE):
+         GAP field (if present) comes before SACK field (if present)
+
+   Implementers MUST ensure that:
+
+   - The Protocol Version is negotiated during connection establishment
+   - The ReversedOrder flag is computed and cached for the connection
+   - All Link Probe packets for the connection use the appropriate
+     interpretation based on this flag
+   - Field parsing respects the correct ordering (SACK->GAP or GAP->SACK)
+     based on the ReversedOrder flag
+
+   Different protocol versions may have subtle differences in field
+   ordering or interpretation that are controlled by the ReversedOrder
+   flag.  Endpoints that do not properly track version information or
+   parse fields in the correct order may experience parsing errors or
+   incompatibilities with other implementations.
+
+8. Security Considerations
+
+   The Link Probe packet format supports flexible acknowledgment
+   mechanisms but does not provide inherent authentication or integrity
+   checking.  Implementations utilizing these packets over untrusted
+   networks SHOULD employ:
+
+   - Separate authentication mechanisms
+   - Integrity checking (HMAC or similar)
+   - Replay attack prevention
+   - Sequence number wrap-around detection
+
+   The 10-bit sequence number space (both SEQ and ACK_SEQ) supports up
+   to 1024 unique sequences before wrapping, which SHOULD be considered
+   in timeout and retransmission logic.
+
+9. References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.

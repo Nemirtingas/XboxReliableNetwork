@@ -1,0 +1,89 @@
+XBox Reliable Network Messaging Protocol - Connect Deny Packet Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of the XBox Reliable Network
+   Messaging (XRNM) Protocol Connect Deny packet. This packet is
+   transmitted by a receiving endpoint to reject a connection request,
+   indicating that the connection could not be established and providing
+   a reason code when available.
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian), with bit
+   numbering from left to right (most significant to least significant
+   within each octet).
+
+3. Connect Deny Packet Format
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |         Packet Length Hi      |         Packet Length Lo      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                      Packet Type (0x04)                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Protocol version                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                       Deny Reason (Optional)                  |
+   |                        (32-bit unsigned)                      |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+3.1. Packet Length (Octets 0-1)
+
+   The Packet Length field is a 16-bit unsigned integer in network
+   byte order that indicates the total length of this packet in octets,
+   excluding the packet length field itself.
+
+3.2. Packet Type (Octet 2)
+
+   The Packet Type field MUST be set to 0x04 to indicate a Connect Deny
+   packet.
+
+3.3. Protocol version (Octet 3-4)
+
+   This 16-bit field, If the value is 0x0000 or 0x0100,
+   a Deny Reason field MAY follow.  Otherwise, no 
+   Deny Reason is present.  Implementations MUST use the
+   value to determine the presence of a Deny Reason.
+
+3.4. Deny Reason (Optional, Octets 5-8)
+
+   The Deny Reason is a 32-bit unsigned integer in network byte order.
+   It indicates the reason why the connection request was denied.
+   Common values include:
+
+      - 0x80808088: Default invalid or unspecified reason
+      - Other application-specific codes may be defined per implementation
+
+   This field is only present if the Reserved / Field value indicates
+   it (0x0000 or 0x0100). Receivers MUST handle the absence of this
+   field gracefully and assume the default reason if missing.
+
+4. Protocol Operation
+
+   Connect Deny packets are sent when a connection request cannot be
+   accepted. Upon receipt of a Connect Deny packet, the initiating
+   endpoint MUST:
+
+      - Validate that the Packet Length matches the received size
+      - Convert the Reserved / Field with ntohs to determine Deny Reason presence
+      - Process the Deny Reason, if present, to determine next actions
+      - Release any temporary resources associated with the connection request
+      - Optionally log or notify the user of the denial reason
+
+5. Design Considerations
+
+   The Connect Deny packet provides a simple mechanism for rejecting
+   connection requests while optionally conveying a reason code.  It
+   maintains minimal packet size. Implementations MUST ensure that
+   Deny Reason values are standardized or agreed upon to avoid
+   misinterpretation.
