@@ -1,4 +1,4 @@
-#include "XboxReliableNetwork.h"
+#include <XboxReliableNetwork/XboxReliableNetwork.h>
 
 bool XRNConnectComplete::Initialize(uint8_t const* buffer, size_t bufferSize, uint16_t protocolVersion)
 {
