@@ -26,3 +26,4 @@
 #include "XRNConnectAccept.h"
 #include "XRNConnectComplete.h"
 #include "XRNConnectDeny.h"
+#include "XRNDisconnect.h"
