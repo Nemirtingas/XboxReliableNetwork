@@ -21,3 +21,4 @@
 
 #include "XRNNet.h"
 #include "XRNUtils.h"
+#include "XRNCommonMessage.h"
