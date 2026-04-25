@@ -5,7 +5,7 @@ class XRNConnectRequest
 {
     static constexpr uint16_t TypeOffset = 2;
     static constexpr uint16_t ProtocolOffset = 3;
-    static constexpr uint16_t receivePoolSizeOffset = 5;
+    static constexpr uint16_t ReceivePoolSizeOffset = 5;
     static constexpr uint16_t NormalAcknowledgeOffset = 7;
     static constexpr uint16_t LazyAcknowledgeOffset = 9;
     static constexpr uint16_t LinkIdOffset = 11;
@@ -14,6 +14,7 @@ class XRNConnectRequest
     static constexpr uint16_t FlagsOffset = 23;
 
     static constexpr uint16_t MinimumPacketSize = 24;
+    static constexpr uint16_t MaximumPacketSize = 28;
 
     static constexpr uint8_t Channel1Flag = 0x01;
     static constexpr uint8_t Channel2Flag = 0x02;
@@ -25,14 +26,15 @@ class XRNConnectRequest
     XRNDefaultChannels defaultChannels{};
 
 public:
+    static constexpr XRNMessageType MessageType = XRNMessageType::ConnectRequest;
 
-    inline uint16_t ProtocolVersion() const { return ReadShortHostOrder(buffer + ProtocolOffset); }
-    inline uint16_t receivePoolSize() const { return ReadShortHostOrder(buffer + receivePoolSizeOffset); }
-    inline uint16_t NormalAcknowledgePeriod() const { return ReadShortHostOrder(buffer + NormalAcknowledgeOffset); }
-    inline uint16_t LazyAcknowledgePeriod() const { return ReadShortHostOrder(buffer + LazyAcknowledgeOffset); }
-    inline uint32_t LinkId() const { return ReadLongHostOrder(buffer + LinkIdOffset); }
-    inline uint32_t CurrentTimestamp() const { return ReadLongHostOrder(buffer + CurrentTimestampOffset); }
-    inline uint32_t MaxNumberSendChannels() const { return ReadLongHostOrder(buffer + MaxNumberSendChannelsOffset); }
+    inline uint16_t ProtocolVersion() const { return XRNntohs(buffer + ProtocolOffset); }
+    inline uint16_t ReceivePoolSize() const { return XRNntohs(buffer + ReceivePoolSizeOffset); }
+    inline uint16_t NormalAcknowledgePeriod() const { return XRNntohs(buffer + NormalAcknowledgeOffset); }
+    inline uint16_t LazyAcknowledgePeriod() const { return XRNntohs(buffer + LazyAcknowledgeOffset); }
+    inline uint32_t LinkId() const { return XRNntohl(buffer + LinkIdOffset); }
+    inline uint32_t CurrentTimestamp() const { return XRNntohl(buffer + CurrentTimestampOffset); }
+    inline uint32_t MaxNumberSendChannels() const { return XRNntohl(buffer + MaxNumberSendChannelsOffset); }
     inline uint8_t Flags() const { return buffer[FlagsOffset]; }
     inline XRNDefaultChannels DefaultChannels() const { return defaultChannels; }
     inline const uint8_t* Payload() const { return payload; }

@@ -1,4 +1,4 @@
-#include <XboxReliableNetwork/XboxReliableNetwork.h>
+#include "XRNPrivate.h"
 
 bool XRNConnectAccept::Initialize(uint8_t const* buffer, size_t bufferSize)
 {
@@ -9,7 +9,7 @@ bool XRNConnectAccept::Initialize(uint8_t const* buffer, size_t bufferSize)
     if (size + 2 != bufferSize)
         return false;
 
-    if (XRNCommonHeader::MessageType(buffer, bufferSize) != XRNMessageType::ConnectAccept)
+    if (XRNCommonHeader::MessageType(buffer, bufferSize) != MessageType)
         return false;
 
     if (bufferSize < MinimumPacketSize)
@@ -22,7 +22,7 @@ bool XRNConnectAccept::Initialize(uint8_t const* buffer, size_t bufferSize)
     int channelOffset = FlagsOffset + 1;
     if (flags & Channel1Flag)
     {
-        defaultChannels.channel1 = ReadShortHostOrder(buffer + channelOffset);
+        defaultChannels.channel1 = XRNntohs(buffer + channelOffset);
         channelOffset += sizeof(defaultChannels.channel1);
     }
     else
@@ -32,7 +32,7 @@ bool XRNConnectAccept::Initialize(uint8_t const* buffer, size_t bufferSize)
 
     if (flags & Channel2Flag)
     {
-        defaultChannels.channel2 = ReadShortHostOrder(buffer + channelOffset);
+        defaultChannels.channel2 = XRNntohs(buffer + channelOffset);
         channelOffset += sizeof(defaultChannels.channel2);
     }
     else
@@ -95,16 +95,16 @@ size_t XRNConnectAccept::WriteHeader(
     if (buffer == nullptr || bufferSize < MinimumPacketSize || defaultChannels == nullptr || reflectedAddress == nullptr)
         return 0;
 
-    buffer[TypeOffset] = static_cast<uint8_t>(XRNMessageType::ConnectAccept);
-    WriteShortNetworkOrder(buffer + ProtocolOffset, protocolVersion);
-    WriteShortNetworkOrder(buffer + receivePoolSizeOffset, receivePoolSize);
-    WriteShortNetworkOrder(buffer + NormalAcknowledgeOffset, normalAcknowledgePeriod);
-    WriteShortNetworkOrder(buffer + LazyAcknowledgeOffset, lazyAcknowledgePrediod);
-    WriteLongNetworkOrder(buffer + EchoLinkIdOffset, echoLinkId);
-    WriteLongNetworkOrder(buffer + LinkIdOffset, linkId);
+    buffer[TypeOffset] = static_cast<uint8_t>(MessageType);
+    XRNhtons(buffer + ProtocolOffset, protocolVersion);
+    XRNhtons(buffer + ReceivePoolSizeOffset, receivePoolSize);
+    XRNhtons(buffer + NormalAcknowledgeOffset, normalAcknowledgePeriod);
+    XRNhtons(buffer + LazyAcknowledgeOffset, lazyAcknowledgePrediod);
+    XRNhtonl(buffer + EchoLinkIdOffset, echoLinkId);
+    XRNhtonl(buffer + LinkIdOffset, linkId);
     memset(buffer + TimestampDeltaOffset, 0, sizeof(uint32_t));
     memset(buffer + CurrentTimestampOffset, 0, sizeof(uint32_t));
-    WriteLongNetworkOrder(buffer + MaxNumberSendChannelsOffset, maxNumberSendChannels);
+    XRNhtonl(buffer + MaxNumberSendChannelsOffset, maxNumberSendChannels);
     uint8_t flags = 0;
     size_t channelOffset = FlagsOffset + 1;
     if (defaultChannels->channel1 != 0)
@@ -112,7 +112,7 @@ size_t XRNConnectAccept::WriteHeader(
         if (bufferSize - channelOffset < sizeof(defaultChannels->channel1))
             return 0;
 
-        WriteShortNetworkOrder(buffer + channelOffset, defaultChannels->channel1);
+        XRNhtons(buffer + channelOffset, defaultChannels->channel1);
         channelOffset += sizeof(defaultChannels->channel1);
         flags |= Channel1Flag;
     }
@@ -121,7 +121,7 @@ size_t XRNConnectAccept::WriteHeader(
         if (bufferSize - channelOffset < sizeof(defaultChannels->channel2))
             return 0;
 
-        WriteShortNetworkOrder(buffer + channelOffset, defaultChannels->channel2);
+        XRNhtons(buffer + channelOffset, defaultChannels->channel2);
         channelOffset += sizeof(defaultChannels->channel2);
         flags |= Channel2Flag;
     }
@@ -179,7 +179,7 @@ size_t XRNConnectAccept::WriteHeader(
 
     buffer[FlagsOffset] = flags;
 
-    WriteShortNetworkOrder(buffer, reflectedAddressOffset + userPayloadSize - 2);
+    XRNhtons(buffer, reflectedAddressOffset + userPayloadSize - 2);
 
     return reflectedAddressOffset;
 }
@@ -189,8 +189,8 @@ bool XRNConnectAccept::RefreshHeader(uint8_t* buffer, size_t bufferSize, uint32_
     if (bufferSize < MinimumPacketSize)
         return false;
 
-    WriteLongNetworkOrder(buffer + TimestampDeltaOffset, timestampDelta);
-    WriteLongNetworkOrder(buffer + CurrentTimestampOffset, currentTimestamp);
+    XRNhtonl(buffer + TimestampDeltaOffset, timestampDelta);
+    XRNhtonl(buffer + CurrentTimestampOffset, currentTimestamp);
 
     return true;
 }

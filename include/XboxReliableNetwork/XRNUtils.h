@@ -1,6 +1,6 @@
 #pragma once
 
-inline uint32_t XRNGetTimestamp()
-{
-	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-}
+uint32_t XRNGetTimestamp();
+void XRNRandomBytes(void* buffer, size_t size);
+uint16_t XRNCompressNCD(uint16_t packetId);
+uint16_t XRNMapWireIdToPktId(uint16_t wNELWireId, uint16_t a2);

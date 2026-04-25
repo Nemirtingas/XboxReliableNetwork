@@ -19,10 +19,12 @@ class XRNConnectComplete
     XRNAddress reflectedAddress{};
 
 public:
+    static constexpr XRNMessageType MessageType = XRNMessageType::ConnectComplete;
 
-    inline uint32_t LinkId() const { return ReadLongHostOrder(buffer + LinkOffset); }
-    inline uint32_t CurrentTimestamp() const { return ReadLongHostOrder(buffer + CurrentTimestampOffset); }
+    inline uint32_t LinkId() const { return XRNntohl(buffer + LinkOffset); }
+    inline uint32_t CurrentTimestamp() const { return XRNntohl(buffer + CurrentTimestampOffset); }
     inline uint8_t Flags() const { return buffer[FlagsOffset]; }
+    inline XRNAddress ReflectedAddress() const { return reflectedAddress; }
 
     bool Initialize(uint8_t const* buffer, size_t bufferSize, uint16_t protocolVersion);
 

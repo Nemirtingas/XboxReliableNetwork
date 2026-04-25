@@ -12,8 +12,9 @@ class XRNDisconnect
     size_t bufferSize = 0;
 
 public:
+    static constexpr XRNMessageType MessageType = XRNMessageType::Disconnect;
 
-    inline uint32_t LinkId() const { return ReadLongHostOrder(buffer + LinkIdOffset); }
+    inline uint32_t LinkId() const { return XRNntohl(buffer + LinkIdOffset); }
 
     bool Initialize(uint8_t const* buffer, size_t bufferSize);
 

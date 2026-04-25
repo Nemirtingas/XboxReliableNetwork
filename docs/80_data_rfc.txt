@@ -135,9 +135,9 @@ Status: Informational
    The ACK type field MUST be set according to the sender's acknowledgment of received packets:
 
       0 = No ACK
-      1 = Partial ACK (for subpacket or incomplete reception)
-      2 = Normal ACK (for standard packet acknowledgment)
-      3 = Full ACK (all data received)
+      1 = Lazy ACK (longer acknowledge period to group multiple acks, saving bandwidth)
+      2 = Normal ACK
+      3 = Immediate ACK (send an acknowledge as soon as possible)
 
    Receivers MUST process the ACK, SACK, and GAP fields to:
 

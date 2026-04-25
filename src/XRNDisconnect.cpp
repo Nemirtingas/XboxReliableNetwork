@@ -1,4 +1,4 @@
-#include <XboxReliableNetwork/XboxReliableNetwork.h>
+#include "XRNPrivate.h"
 
 bool XRNDisconnect::Initialize(uint8_t const* buffer, size_t bufferSize)
 {
@@ -9,7 +9,7 @@ bool XRNDisconnect::Initialize(uint8_t const* buffer, size_t bufferSize)
     if (magic != DisconnectMagic)
         return false;
 
-    if (XRNCommonHeader::MessageType(buffer, bufferSize) != XRNMessageType::Disconnect)
+    if (XRNCommonHeader::MessageType(buffer, bufferSize) != MessageType)
         return false;
 
     if (bufferSize < MinimumPacketSize)
@@ -26,8 +26,8 @@ size_t XRNDisconnect::WriteHeader(
     if (buffer == nullptr || bufferSize < MinimumPacketSize)
         return 0;
 
-    WriteShortNetworkOrder(buffer, DisconnectMagic);
-    buffer[TypeOffset] = static_cast<uint8_t>(XRNMessageType::Disconnect);
-    WriteLongNetworkOrder(buffer + LinkIdOffset, linkId);
+    XRNhtons(buffer, DisconnectMagic);
+    buffer[TypeOffset] = static_cast<uint8_t>(MessageType);
+    XRNhtonl(buffer + LinkIdOffset, linkId);
     return MinimumPacketSize;
 }

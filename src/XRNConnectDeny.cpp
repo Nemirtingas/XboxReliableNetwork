@@ -1,4 +1,4 @@
-#include <XboxReliableNetwork/XboxReliableNetwork.h>
+#include "XRNPrivate.h"
 
 bool XRNConnectDeny::Initialize(uint8_t const* buffer, size_t bufferSize)
 {
@@ -9,7 +9,7 @@ bool XRNConnectDeny::Initialize(uint8_t const* buffer, size_t bufferSize)
     if (size + 2 != bufferSize)
         return false;
 
-    if (XRNCommonHeader::MessageType(buffer, bufferSize) != XRNMessageType::ConnectDeny)
+    if (XRNCommonHeader::MessageType(buffer, bufferSize) != MessageType)
         return false;
 
     if (bufferSize < MinimumPacketSizeOld)
@@ -33,7 +33,7 @@ bool XRNConnectDeny::Initialize(uint8_t const* buffer, size_t bufferSize)
     if (bufferSize < MinimumPacketSize)
         return false;
 
-    reason = ReadLongHostOrder(buffer + ReasonOffset);
+    reason = XRNntohl(buffer + ReasonOffset);
 
     payloadSize = bufferSize - MinimumPacketSize;
     if (payloadSize > 0)
@@ -47,26 +47,28 @@ bool XRNConnectDeny::Initialize(uint8_t const* buffer, size_t bufferSize)
 size_t XRNConnectDeny::WriteHeader(
     uint8_t* buffer,
     size_t bufferSize,
-    uint16_t protocolVersion,
+    uint16_t requestProtocolVersion,
+    uint16_t responseProtocolVersion,
     uint32_t linkId,
-    uint32_t reason,
-    size_t payloadSize)
+    uint32_t linkDataSize,
+    uint32_t reason)
 {
     if (buffer == nullptr || bufferSize < MinimumPacketSize)
         return 0;
 
-    buffer[TypeOffset] = static_cast<uint8_t>(XRNMessageType::ConnectDeny);
-    WriteShortNetworkOrder(buffer + ProtocolOffset, protocolVersion);
-    WriteLongNetworkOrder(buffer + LinkIdOffset, linkId);
+    buffer[TypeOffset] = static_cast<uint8_t>(MessageType);
+    XRNhtonl(buffer + LinkIdOffset, linkId);
 
-    if (protocolVersion < 0x0102)
+    if (requestProtocolVersion < 0x0102)
     {
-        WriteShortNetworkOrder(buffer, payloadSize + MinimumPacketSizeOld - 2);
+        XRNhtons(buffer + ProtocolOffset, 1);
+        XRNhtons(buffer, MinimumPacketSizeOld - 2);
         return MinimumPacketSizeOld;
     }
 
-    WriteLongNetworkOrder(buffer + ReasonOffset, reason);
+    XRNhtons(buffer + ProtocolOffset, responseProtocolVersion);
+    XRNhtonl(buffer + ReasonOffset, reason);
 
-    WriteShortNetworkOrder(buffer, payloadSize + MinimumPacketSize - 2);
+    XRNhtons(buffer, linkDataSize + MinimumPacketSize - 2);
     return MinimumPacketSize;
 }
