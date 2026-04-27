@@ -1,0 +1,207 @@
+XBox Reliable Network Messaging Protocol - Fragment Start Sub-Packet Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of the Fragment Start sub-packet
+   (Type 0x03) within the XRNM Protocol. The Fragment Start sub-packet
+   indicates the beginning of a fragmented message that spans multiple
+   data packets.
+
+   Fragment Start sub-packets carry:
+
+   - The total size of the complete fragmented message
+   - Marker indicating the start of a multi-packet fragment sequence
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" are to be
+   interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian).
+
+3. Fragment Start Sub-Packet Format
+
+   The Fragment Start sub-packet has the following structure:
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   | Flags/ChID    |   Type (0x03) |  Fragment Total Size (32-bit) |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                Fragment Total Size (Lo)                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |           Fragment Data (First Chunk - Variable)              |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+4. Field Definitions
+
+4.1. Sub-Packet Header (Inherited)
+
+   The sub-packet header fields are inherited from the sub-packet base
+   format (see 81_subpkt_header_rfc.txt for details on the Flags/ChID
+   byte, channel ID encoding, optional sequence number, and length field).
+
+   For Fragment Start sub-packets:
+   - Type byte (following length field) = 0x03
+
+4.2. Fragment Total Size (Octets 2-5)
+
+   A 32-bit big-endian unsigned integer specifying the total size of
+   the complete fragmented message across all data packets.
+
+      0                   1                   2                   3
+      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |                 Fragment Total Size (32-bit)                  |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   This value indicates the combined size of all fragment chunks that
+   will be received to reassemble the complete message.
+
+   Range: 1 - 4,294,967,295 octets
+
+4.3. Fragment Data (First Chunk)
+
+   The Fragment Start sub-packet includes the first chunk of fragment
+   data immediately following the Fragment Total Size field. The size
+   of this first chunk is determined by the sub-packet length field
+   minus the fixed header overhead (4 bytes for Fragment Total Size).
+
+   Subsequent chunks are transmitted in subsequent data packets using
+   the same channel ID and may omit the Fragment Start sub-packet header
+   (continuing as raw data in the data packet payload).
+
+5. Fragment Reassembly Process
+
+   5.1. Receiving First Fragment
+
+   When a Fragment Start sub-packet is received:
+
+   1. Extract Channel ID from sub-packet header
+   2. Extract Fragment Total Size
+   3. Initialize a fragment buffer of Fragment Total Size
+   4. Copy the first chunk data to offset 0 in the buffer
+   5. Record the bytes received so far
+   6. Prepare to receive continuation fragments
+
+   5.2. Receiving Continuation Fragments
+
+   Subsequent data packets on the same channel ID (without Fragment Start):
+
+   1. Append the data packet payload to the fragment buffer
+   2. Update total bytes received counter
+   3. If bytes received == Fragment Total Size, reassembly complete
+
+   5.3. Reassembly Completion
+
+   When Fragment Total Size bytes have been received:
+
+   1. Validate the complete message (checksum if present)
+   2. Deliver the complete reassembled message to application layer
+   3. Clear fragment buffer
+   4. Return to normal channel message processing
+
+6. Protocol Operation
+
+   6.1. Multi-Packet Fragmentation
+
+   Large messages that exceed the MTU are split across multiple data packets:
+
+   Data Packet 1 (contains Fragment Start):
+   +-----------+
+   | Fragment Start Sub-Packet Header |
+   | Fragment Size: 10000             |
+   | [1400 bytes of fragment data]    |
+   +-----------+
+
+   Data Packet 2 (contains continuation):
+   +-----------+
+   | [1400 bytes of fragment data]    |
+   +-----------+
+
+   Data Packet 3 (contains final chunk):
+   +-----------+
+   | [remaining bytes to reach 10000] |
+   +-----------+
+
+   6.2. Channel ID Tracking
+
+   All fragments of a message use the same Channel ID. This allows
+   the receiver to:
+
+   - Match fragments to the correct reassembly buffer
+   - Handle out-of-order fragment arrival
+   - Detect lost fragments for retransmission
+
+   6.3. Sequence Number Handling
+
+   If the SEQ flag is set in the Fragment Start sub-packet header:
+
+   - Use the provided sequence number for first chunk
+   - Increment sequence for each continuation fragment
+   - Detect missing fragments via sequence gaps
+
+7. Error Handling
+
+   7.1. Fragment Timeout
+
+   If a reassembly is incomplete after a timeout period:
+
+   1. Discard the fragment buffer
+   2. Optionally, send a Channel Terminate sub-packet for cleanup
+   3. Notify application of timeout
+
+   7.2. Fragment Reordering
+
+   If fragments arrive out of order:
+
+   1. Buffer out-of-order fragments
+   2. Fill gaps as fragments arrive
+   3. Complete reassembly when all bytes received
+
+   7.3. Fragment Size Validation
+
+   Before accepting a Fragment Start:
+
+   - Validate Fragment Total Size is reasonable
+   - Check available memory for buffer allocation
+   - Reject if size exceeds maximum configured limit
+
+8. Design Considerations
+
+   - Fragment Start sub-packets support arbitrarily large messages
+     without fragmentation limit in the protocol layer
+   - The first chunk included in Fragment Start reduces latency
+     by beginning data transfer immediately
+   - Channel ID provides natural grouping for fragment reassembly
+   - Sequence numbers enable efficient out-of-order and duplicate detection
+   - No explicit End-of-Fragments marker required; size field provides
+     sufficient information for reassembly completion
+
+9. Examples
+
+   9.1. 10 KB Message Fragmented Across 3 Packets
+
+   Fragment Total Size: 10240 bytes
+   MTU: 1500 bytes
+
+   Packet 1: Fragment Start, 1396 bytes data (4-byte header overhead)
+   Packet 2: 1500 bytes continuation
+   Packet 3: 1500 bytes continuation
+   Packet 4: 1844 bytes continuation (remaining)
+
+   Total: 4 * 1500 - ~300 bytes overhead = ~6000 bytes transmitted
+
+   9.2. Reliable Fragment Delivery
+
+   Each fragment data packet carries REL flag set in sub-packet header:
+
+   Fragment Start: REL=1, Channel ID=7, Fragment Size=50000
+   [Data chunks transmitted with ACK tracking]
+   [Missing chunks detected and retransmitted]
+   Reassembly completes when all 50000 bytes received and acknowledged

@@ -1,0 +1,195 @@
+XBox Reliable Network Messaging Protocol - Sub-Packet Header Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of sub-packets contained within the
+   payload of XRNM Data packets (0x80).  Sub-packets provide a flexible
+   mechanism for encapsulating control information and fragmented data
+   within the data packet payload.
+
+   Sub-packets are used to:
+
+   - Create and terminate logical channels
+   - Fragment large messages across multiple data packets
+   - Establish synchronization dependencies between packets
+   - Carry encrypted or unencrypted payload data
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" are to be
+   interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian).
+
+3. Sub-Packet Structure
+
+   Sub-packets are variable-length structures contained within a Data packet
+   payload. Each sub-packet consists of a header followed by optional fields
+   and payload data.
+
+   The sub-packet header layout:
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   | Flags / Channel ID (encoded)  |  Optional Fields (Variable)   |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                      Optional Sequence Number                 |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |  Length / Size Encoding       |   Sub-Packet Type (optional)  |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                      Sub-Packet Payload                       |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+4. Field Definitions
+
+4.1. First Byte (Flags and Channel ID)
+
+   The first byte encodes both flags and the channel ID, with flags in
+   the upper bits:
+
+      7   6   5   4   3   2   1   0
+    +---+---+---+---+---+---+---+---+
+    |SUB|REL|SEQ|ENC|  CHANNEL_ID   |
+    +---+---+---+---+---+---+---+---+
+
+   Where:
+   - SUB (bit 7): If set, the sub packet is a data packet (not fragmented), if not set see 4.5.
+   - REL (bit 6): Reliability flag (0x40)
+   - SEQ (bit 5): Sequence flag - indicates if sequence number field is present (0x20)
+   - ENC (bit 4): Encrypted payload flag (0x10)
+   - CHANNEL_ID (bits 3-0): Channel identifier (if bits 3-0 are non-zero, this is
+     a "tiny" channel ID encoding where the ID fits in 4 bits and ranges from 1-15)
+
+4.2. Channel ID Encoding
+
+   The Channel ID determines how many bytes are consumed by the channel ID field:
+
+   Case 1: Tiny Channel ID (first byte bits 3-0 != 0)
+   - Channel ID = first byte & 0x0F
+   - No additional bytes consumed
+   - Valid range: 1-15
+
+   Case 2: First byte bits 3-0 == 0
+   - Second byte indicates size of channel ID:
+     * 0x00-0x7F: 1-byte channel ID
+       Channel ID = second byte
+     * 0x80-0xBF: 2-byte big-endian channel ID
+       Channel ID = (second byte & 0x3FFF) | ((third byte & 0xFF) << 14)
+     * 0xC0-0xFF: 4-byte big-endian channel ID
+       Channel ID = (second byte & 0x3FFFFFFF) | ((third byte & 0xFF) << 22)
+
+4.3. Sequence Number (Optional)
+
+   If the SEQ flag (bit 5 of first byte) is set, a 16-bit big-endian
+   sequence number follows the channel ID encoding. The sequence number
+   is only present if this sub-packet has not been seen before in this
+   data packet's sub-packet sequence.
+
+      0                   1
+      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |         Sequence Number (16-bit)      |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+4.4. Length/Size Field
+
+   This field encodes the length of the sub-packet payload and indicates
+   how the length is encoded. The format depends on the value of bit 4
+   (ENC flag) of the first byte:
+
+   If ENC flag (0x10) is NOT set:
+   - First byte: uint8_t containing payload_length * 2
+   - Payload length is implicit: (first_byte * 2)
+
+   If ENC flag (0x10) IS set:
+   - First byte is 0x00 and length is implicit (fills remaining buffer)
+   - OR First 2 bytes form big-endian uint16_t containing actual length
+
+4.5. Sub-Packet Type
+
+   If bit 7 of the first byte (SUB flag) is NOT set (0x80), then a type
+   byte follows the length encoding:
+
+      7   6   5   4   3   2   1   0
+    +---+---+---+---+---+---+---+---+
+    | Type (0-4)                    |
+    +---+---+---+---+---+---+---+---+
+
+   Valid types:
+   - 0x00: Unknown/Reserved
+   - 0x01: Channel Create (see 82_subpkt_channel_create_rfc.txt)
+   - 0x02: Channel Terminate (see 83_subpkt_channel_terminate_rfc.txt)
+   - 0x03: Fragment Start (see 84_subpkt_fragment_start_rfc.txt)
+   - 0x04: Sync Dependency
+   - 0x80: Encrypted Payload (indicated by bit 7 set in first byte)
+
+   If bit 7 is set (0x80), the sub-packet contains encrypted payload and
+   type information is not present.
+
+4.6. Sub-Packet Payload
+
+   The payload immediately follows the header and contains type-specific
+   data. The length of the payload is determined by the length field
+   and the total size constraints of the containing Data packet.
+
+5. Sub-Packet Processing Rules
+
+   5.1. Channel ID Tracking
+
+   Sub-packet processors MUST track which channel IDs have been seen
+   in the current data packet. When a SEQ flag is present, a new
+   sequence number is allocated for that channel. When processing
+   subsequent sub-packets with the same channel ID but without a
+   SEQ flag, the sequence number MAY be incremented based on the
+   REL flag state.
+
+   5.2. Reliability Semantics
+
+   The REL flag (0x40) indicates whether the sub-packet requires
+   acknowledgment:
+
+   - REL = 0: Unreliable delivery (best-effort, may be discarded)
+   - REL = 1: Reliable delivery (must be acknowledged and retransmitted on loss)
+
+   5.3. Encrypted Payload
+
+   If the ENC flag (0x10) is set OR bit 7 of the first byte is set (0x80),
+   the sub-packet payload is encrypted and MUST NOT be parsed as
+   sub-packet types. The entire remaining payload should be treated as
+   encrypted data.
+
+6. Sub-Packet Type Definitions
+
+   Individual sub-packet types are defined in separate RFCs:
+
+   - Channel Create (0x01): 82_subpkt_channel_create_rfc.txt
+   - Channel Terminate (0x02): 83_subpkt_channel_terminate_rfc.txt
+   - Fragment Start (0x03): 84_subpkt_fragment_start_rfc.txt
+   - Sync Dependency: (Embedded in Channel Create when needed)
+
+7. Protocol Operation
+
+   Sub-packets flow during the following scenarios:
+
+   - Connection Initialization: Channel Create sub-packets establish
+     application-level channels for communication
+   - Data Fragmentation: Large payloads are split across multiple
+     data packets using Fragment Start sub-packets
+   - Channel Closure: Channel Terminate sub-packets signal the end of
+     channel communication
+   - Synchronization: Sync Dependency sub-packets establish ordering
+     constraints between multi-packet operations
+
+8. Design Considerations
+
+   - Sub-packet headers are designed for minimal overhead through clever
+     channel ID encoding and size field optimization
+   - The presence of sequence numbers allows efficient detection of
+     duplicate or missing sub-packets
+   - Encrypted payloads are supported natively without additional framing

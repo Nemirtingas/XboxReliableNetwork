@@ -1,0 +1,216 @@
+XBox Reliable Network Messaging Protocol - Sync Dependency Field Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of the Sync Dependency field,
+   which is an optional component that can appear in certain sub-packets
+   (primarily Channel Create). The Sync Dependency field establishes
+   ordering and causality constraints between multiple packets or
+   sub-packets.
+
+   Sync Dependencies are used to:
+
+   - Establish packet ordering requirements for protocol correctness
+   - Prevent race conditions in multi-stage setup sequences
+   - Control resource allocation timing across multiple endpoints
+   - Ensure idempotent operation semantics in the presence of retransmission
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" are to be
+   interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian).
+
+3. Sync Dependency Field Format
+
+   When present, the Sync Dependency field is a 16-bit value that
+   establishes a dependency on a previously transmitted packet:
+
+   0                   1
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |     Sync Dependency Value (16-bit)    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+4. Presence and Encoding
+
+   4.1. Channel Create Context
+
+   In Channel Create sub-packets, the Sync Dependency field is
+   optional and indicated by the SYNC flag (bit 7) in the Channel
+   Type field:
+
+   Channel Type byte layout when SYNC flag is set:
+
+      7   6   5   4   3   2   1   0
+    +---+---+---+---+---+---+---+---+
+    | 1 |  Channel Type Subcode     |
+    +---+---+---+---+---+---+---+---+
+
+   When SYNC flag (bit 7) is set:
+   - A 16-bit Sync Dependency Value follows the Payload Length field
+   - Before: Channel Type | Create Order | Payload Length | Payload
+   - After:  Channel Type | Create Order | Payload Length | Sync Dep | Payload
+
+   4.2. Other Contexts
+
+   The Sync Dependency field may appear in other sub-packet types
+   as defined by their respective RFCs. The presence is indicated
+   by a specific flag or type code in the sub-packet header.
+
+5. Sync Dependency Semantics
+
+   5.1. Interpretation
+
+   The exact interpretation of the Sync Dependency Value is application
+   and context-dependent. Common interpretations include:
+
+   - Packet ID: References a specific previously-sent packet that must
+     be processed before this sub-packet
+   - Sequence Number: Indicates ordering constraint with respect to
+     a previously-seen sequence number
+   - Event ID: References a specific event (channel creation, state change)
+     that must occur before processing this sub-packet
+   - Resource Handle: Identifies a resource or context that must be
+     available before this operation proceeds
+
+   5.2. Circular Dependency Prevention
+
+   The protocol relies on acyclic dependency graphs:
+
+   - A sub-packet MUST NOT depend on itself
+   - Cycles in dependency chains MUST NOT be created
+   - The receiver MUST validate dependencies form a valid DAG
+
+   5.3. Timeout Semantics
+
+   If a dependency cannot be satisfied within a timeout period:
+
+   - The receiver MAY drop the dependent sub-packet
+   - The receiver MAY send a Channel Terminate sub-packet
+   - The receiver SHOULD notify the sender of the timeout
+
+6. Protocol Operation
+
+   6.1. Processing with Sync Dependencies
+
+   When a Channel Create sub-packet with Sync Dependency is received:
+
+   1. Extract Sync Dependency Value
+   2. Verify the referenced packet/event exists and is satisfied
+   3. If dependency not satisfied:
+      a. Buffer the sub-packet
+      b. Continue processing other sub-packets
+      c. Periodically check if dependency is now satisfied
+   4. Once dependency is satisfied:
+      a. Process the previously-buffered sub-packet
+      b. Initialize the channel with any payload data
+   5. Deliver to application layer
+
+   6.2. Dependency Satisfaction
+
+   A dependency is considered satisfied when:
+
+   - For Packet ID: The referenced packet has been processed
+   - For Sequence Number: All packets up to that sequence have been processed
+   - For Event ID: The referenced event has occurred
+   - For Resource Handle: The resource is allocated and ready
+
+   6.3. Multi-Stage Setup Sequences
+
+   Typical multi-stage sequence with dependencies:
+
+   Stage 1: Send Channel Create (no dependency)
+   Stage 2: Receive acknowledgment
+   Stage 3: Send Channel Create with Sync Dependency on Stage 1
+   Stage 4: Receiver processes Stage 3 after Stage 1 is complete
+   Stage 5: Bidirectional channel communication begins
+
+7. Sync Dependency Value Allocation
+
+   7.1. Sender Perspective
+
+   When creating a sub-packet with a dependency:
+
+   1. Identify the packet/event being depended on
+   2. Obtain its identifier (Packet ID, Sequence Number, etc.)
+   3. Store as Sync Dependency Value
+   4. Set SYNC flag in Channel Type byte
+   5. Include the Sync Dependency field in the sub-packet
+
+   7.2. Receiver Perspective
+
+   When processing a sub-packet with a dependency:
+
+   1. Check if Sync Dependency Value is recognized
+   2. Verify the referenced entity has been processed
+   3. If not ready, buffer the sub-packet
+   4. Once ready, process immediately
+   5. Clean up the buffered entry
+
+8. Design Considerations
+
+   - Sync Dependencies add minimal overhead (only 2 bytes when needed)
+   - The dependency mechanism is flexible and protocol-agnostic
+   - Applications define the meaning of dependency values
+   - Buffering allows for out-of-order packet arrival without protocol errors
+   - Timeout protection prevents indefinite blocking on unmet dependencies
+
+9. Error Handling
+
+   9.1. Unknown Dependency
+
+   If Sync Dependency Value references an unknown packet/event:
+
+   - Option 1: Defer processing until dependency appears (timeout protection)
+   - Option 2: Reject the sub-packet immediately
+   - Option 3: Use value 0x0000 as "no dependency" escape
+
+   9.2. Circular Dependencies
+
+   If dependency validation detects a cycle:
+
+   - Reject all sub-packets involved in the cycle
+   - Send Channel Terminate for affected channels
+   - Log error condition for debugging
+
+   9.3. Resource Exhaustion
+
+   If too many dependent sub-packets are buffered:
+
+   - Implement a maximum buffer limit
+   - Drop oldest dependent sub-packets
+   - Send notification of dropped packets
+
+10. Examples
+
+    10.1. Simple Dependency (wait for previous packet)
+
+    Channel ID: 1
+    Sync Dependency: References Packet ID 42
+    Meaning: Cannot create this channel until Packet 42 is processed
+
+    10.2. Multi-Level Dependency Chain
+
+    Packet 1: Channel Create (ChID=1, no dependency)
+    Packet 2: Channel Create (ChID=2, depends on Packet 1)
+    Packet 3: Channel Create (ChID=3, depends on Packet 2)
+
+    Processing order (forced by dependencies):
+    - Process Packet 1 (no dependencies)
+    - Process Packet 2 (after Packet 1 complete)
+    - Process Packet 3 (after Packet 2 complete)
+
+    10.3. Concurrent Independent Channels
+
+    Packet 1: Channel Create (ChID=1, no dependency)
+    Packet 2: Channel Create (ChID=2, no dependency)
+    Packet 3: Channel Create (ChID=3, no dependency)
+
+    Processing order (no dependencies):
+    - Can process Packets 1, 2, 3 in any order
+    - No ordering constraints required

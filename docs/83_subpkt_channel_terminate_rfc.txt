@@ -1,0 +1,162 @@
+XBox Reliable Network Messaging Protocol - Channel Terminate Sub-Packet Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of the Channel Terminate sub-packet
+   (Type 0x02) within the XRNM Protocol. The Channel Terminate sub-packet
+   is used to cleanly close a logical channel within an XRNM connection.
+
+   Channel Terminate sub-packets carry:
+
+   - A termination identifier or reason code
+   - Optional termination payload (for close-time negotiation or resource cleanup)
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" are to be
+   interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian).
+
+3. Channel Terminate Sub-Packet Format
+
+   The Channel Terminate sub-packet has the following structure:
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   | Flags/ChID    |   Type (0x02) |    Termination ID (32-bit)    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    Termination ID (Lo)                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |            Optional Termination Payload (Variable)            |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+4. Field Definitions
+
+4.1. Sub-Packet Header (Inherited)
+
+   The sub-packet header fields are inherited from the sub-packet base
+   format (see 81_subpkt_header_rfc.txt for details on the Flags/ChID
+   byte, channel ID encoding, optional sequence number, and length field).
+
+   For Channel Terminate sub-packets:
+   - Type byte (following length field) = 0x02
+
+4.2. Termination ID (Octets 2-5)
+
+   A 32-bit big-endian unsigned integer providing context for channel
+   termination. The interpretation of this field is application-defined
+   but may include:
+
+   - A reason code for the termination
+   - A channel-specific identifier
+   - A correlation ID for matching terminate requests with responses
+   - State information for graceful shutdown
+
+      0                   1                   2                   3
+      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |                   Termination ID (32-bit)                     |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+4.3. Optional Termination Payload
+
+   Following the Termination ID field, the sub-packet may contain
+   variable-length payload data. The presence and interpretation of
+   this data is determined by the length field in the sub-packet header.
+
+   The total payload size (including the 4-byte Termination ID) is
+   determined by subtracting the header size from the total sub-packet
+   length specified in the sub-packet header.
+
+   If the payload length is exactly 4 bytes (only Termination ID, no
+   additional payload), this is an implicit termination with no
+   additional context data.
+
+5. Protocol Operation
+
+   5.1. Channel Termination
+
+   When a Channel Terminate sub-packet is received:
+
+   1. Extract the Channel ID from the sub-packet header
+   2. Verify the channel exists and is in an open state
+   3. Extract the Termination ID (reason/correlation)
+   4. If present, process any termination payload (application-specific)
+   5. Mark the channel as closed or pending cleanup
+   6. Acknowledge receipt if the REL flag is set in the sub-packet header
+   7. Notify the application layer of the channel closure
+
+   5.2. Graceful Shutdown Sequence
+
+   Typical channel termination flow:
+
+   1. Sender: All pending data sent, sends Channel Terminate sub-packet
+   2. Receiver: Receives Channel Terminate, processes any cleanup payload
+   3. Receiver: Sends acknowledgment (via Data packet if REL flag set)
+   4. Both endpoints: Close channel and free associated resources
+
+   5.3. Error Termination
+
+   If a channel encounters a protocol error or resource constraint:
+
+   1. The sender MAY send Channel Terminate with Termination ID encoding
+      the error code
+   2. The receiver interprets the error code from Termination ID
+   3. The receiver MUST not attempt to recover or retransmit on this channel
+   4. Both endpoints: Immediately close channel and clean up resources
+
+6. Design Considerations
+
+   - The fixed 4-byte minimum payload (Termination ID only) ensures
+     efficient channel closure with minimal overhead
+   - The optional payload field supports graceful shutdown protocols
+     that require context exchange (e.g., "pending data count",
+     "resource cleanup requirements")
+   - No synchronization dependencies are supported in Channel Terminate,
+     as channel closure typically represents a terminal state
+   - The Termination ID is flexible enough to support both reason codes
+     and application-specific correlation identifiers
+
+7. Examples
+
+   7.1. Simple Channel Close (4-byte payload)
+
+   Flags/ChID:      0x05           (Channel ID 5)
+   Type:            0x02           (Channel Terminate)
+   Termination ID:  0x00000000     (Normal termination)
+   [No additional payload]
+
+   7.2. Error Termination with Reason (4-byte payload)
+
+   Flags/ChID:      0x08           (Channel ID 8)
+   Type:            0x02           (Channel Terminate)
+   Termination ID:  0x00000001     (Error: Resource Exhausted)
+   [No additional payload]
+
+   7.3. Graceful Close with Status (Variable payload)
+
+   Flags/ChID:           0x03       (Channel ID 3)
+   Type:                 0x02       (Channel Terminate)
+   Termination ID:       0x12345678 (Context/Correlation ID)
+   Termination Payload:  [Status data: pending count, etc.]
+
+8. State Machine Implications
+
+   Channel states relative to termination:
+
+   - OPEN: Normal data flow permitted
+   - CLOSING: Channel Terminate received, no new data accepted
+   - CLOSED: Channel Terminate acknowledged, resources freed
+
+   Transitions:
+
+   - OPEN -> CLOSING: On Channel Terminate reception
+   - OPEN -> CLOSED: Immediately (for local termination requests)
+   - CLOSING -> CLOSED: On acknowledgment receipt

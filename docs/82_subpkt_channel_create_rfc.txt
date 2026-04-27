@@ -1,0 +1,185 @@
+XBox Reliable Network Messaging Protocol - Channel Create Sub-Packet Format
+
+Status: Informational
+
+1. Introduction
+
+   This document specifies the format of the Channel Create sub-packet
+   (Type 0x01) within the XRNM Protocol. The Channel Create sub-packet
+   is used to establish a new logical channel within an XRNM connection.
+
+   Channel Create sub-packets carry:
+
+   - The channel creation order count
+   - Application-level payload data
+   - Optional synchronization dependency information
+
+2. Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" are to be
+   interpreted as described in RFC 2119.
+
+   Packet bytes are shown in network byte order (big-endian).
+
+3. Channel Create Sub-Packet Format
+
+   The Channel Create sub-packet has the following format:
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   | Flags/ChID    |  Channel Type |  Create Order Count (Hi)      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |Create Order Count (Lo)        |    Payload Length (16-bit Hi) |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   | Payload Length (16-bit Lo)    | Optional Sync Dependency      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                 Channel Payload (Variable)                    |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+4. Field Definitions
+
+4.1. Sub-Packet Header (Inherited)
+
+   The sub-packet header fields are inherited from the sub-packet base
+   format (see 81_subpkt_header_rfc.txt for details on the Flags/ChID
+   byte, channel ID encoding, optional sequence number, length field,
+   and type byte).
+
+   For Channel Create sub-packets:
+   - Type byte (following length field) = 0x01
+
+4.2. Channel Type (Octet 1)
+
+   The Channel Type field identifies the semantic type of this channel.
+   This value is defined by the application and is used to determine
+   how the channel should be processed.
+
+      7   6   5   4   3   2   1   0
+    +---+---+---+---+---+---+---+---+
+    | Sync  |       Channel Type    |
+    +---+---+---+---+---+---+---+---+
+
+   - Bit 7 (0x80): SYNC flag - Set if a synchronization dependency follows
+     the payload length field. If set, the payload size increases by 2 bytes.
+   - Bits 6-0: Channel Type - Application-defined channel type identifier
+
+4.3. Create Order Count (Octets 2-3)
+
+   A 16-bit big-endian unsigned integer indicating the creation order
+   sequence number for this channel. Channels are numbered in the order
+   they are created across all data packets in this connection.
+
+      0                   1
+      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |     Create Order Count (16-bit)       |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   Range: 0 - 65535
+
+4.4. Payload Length (Octets 4-7)
+
+   A 24-bit (3-byte) big-endian unsigned integer indicating the length
+   of the channel payload that follows the optional sync dependency field.
+
+      0                   1                   2                   3
+      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |                                                               |
+      +                 Payload Length (32-bit)                       +
+      |                                                               |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+4.5. Sync Dependency (Optional, Octets 7-8)
+
+   If the SYNC flag (bit 7 of Channel Type field) is set, a 16-bit
+   big-endian sync dependency value is present immediately following
+   the payload length field.
+
+      0                   1
+      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |     Sync Dependency Value (16-bit)    |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   This value establishes a synchronization dependency with a previously
+   transmitted packet. The exact semantics of this dependency are
+   application-defined, but typically indicate packet ordering or
+   resource allocation constraints.
+
+5. Channel Create Sub-Packet Layout Examples
+
+5.1. Without Sync Dependency (SYNC flag = 0)
+
+   Minimum header size: 7 octets (excluding sub-packet base header)
+
+   Offsets from Channel Type byte:
+   - +0: Channel Type (no SYNC flag)
+   - +1-2: Create Order Count (16-bit)
+   - +3-6: Payload Length (32-bit)
+   - +7+: Payload data
+
+5.2. With Sync Dependency (SYNC flag = 1)
+
+   Minimum header size: 9 octets (excluding sub-packet base header)
+
+   Offsets from Channel Type byte:
+   - +0: Channel Type (with SYNC flag set)
+   - +1-2: Create Order Count (16-bit)
+   - +3-6: Payload Length (32-bit)
+   - +7-8: Sync Dependency (16-bit)
+   - +9+: Payload data
+
+6. Channel Payload
+
+   The payload immediately follows the fixed header fields. The payload
+   length is determined by the Payload Length field and is opaque to the
+   protocol layer. The interpretation of the payload is application-specific.
+
+7. Protocol Operation
+
+   7.1. Channel Creation
+
+   When a Channel Create sub-packet is received:
+
+   1. Extract the Channel ID from the sub-packet header
+   2. Verify the Create Order Count is sequential or appropriate
+   3. If SYNC flag is set, process the synchronization dependency
+   4. Store or forward the channel payload to the application layer
+   5. Acknowledge receipt if the REL flag is set in the sub-packet header
+   6. Initialize any internal channel state required for subsequent
+      communication on this channel
+
+   7.2. Multi-Packet Channels
+
+   If a channel payload spans multiple data packets:
+
+   - Each data packet contains one Channel Create sub-packet
+   - The Channel ID remains constant across packets
+   - Fragment Start sub-packets indicate payload fragmentation
+   - Packets MUST be reassembled in order before channel initialization
+     is complete
+
+   7.3. Synchronization Constraints
+
+   If the SYNC flag is set:
+
+   - The sender establishes a dependency on a previously sent packet
+   - The receiver MUST respect this ordering to ensure correct
+     channel semantics
+   - The exact meaning of the sync dependency value is application-defined
+
+8. Design Considerations
+
+   - The 32-bit payload length supports channel, suitable
+     for large configuration or state exchange operations
+   - The Create Order Count enables efficient channel ID allocation and
+     duplicate detection
+   - Optional sync dependencies support complex multi-stage protocols
+     without additional framing
+   - The Channel Type field allows for future protocol extensions and
+     application-specific channel semantics
