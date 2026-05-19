@@ -99,23 +99,17 @@ Status: Informational
    Major=0x01, Minor=0x05.  This MUST match or be compatible with
    the version in the corresponding Connect Request.
 
-3.4. Additional Settings (Octets 5-6) (Work In Progress)
+3.4. Receive Pool Size (Octets 5-6)
 
-   This field contains endpoint configuration parameters derived from
-   the implementation's endpoint settings structure (field_82 0x0040).  These
-   parameters control endpoint behavior and capabilities.
+   This field contains
 
-3.5. Endpoint Configuration (Octets 7-8) (Work In Progress)
+3.5. Normal Acknowledge Period (Octets 7-8)
 
-   This field contains endpoint configuration parameters derived from
-   the implementation's endpoint settings structure (field_7C 0x0004).  These
-   parameters control endpoint behavior and capabilities.
+   This field contains
 
-3.6. Additional Settings (Octets 9-10) (Work In Progress)
+3.6. Lazy Acknowledge Period (Octets 9-10)
 
-   This field contains endpoint configuration parameters derived from
-   the implementation's endpoint settings structure (field_7E 0x07D0).  These
-   parameters control endpoint behavior and capabilities.
+   This field contains
 
 3.7. Remote Link ID (Octets 11-14)
 
@@ -146,12 +140,9 @@ Status: Informational
    are implementation-dependent.  In the example, the value is
    0x19af6f61.
 
-3.11. Endpoint Settings (Octets 27-30)
+3.11. Max Num Send Channels (Octets 27-30)
 
-   This field contains additional endpoint settings derived from the
-   implementation's endpoint settings structure (field_18).  These
-   settings provide further configuration details.  The example value
-   0x00ffffff represents default settings.
+   This field contains
 
 3.12. Channels Field (Octet 31)
 

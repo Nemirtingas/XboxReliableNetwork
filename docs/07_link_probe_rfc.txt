@@ -43,9 +43,9 @@ Status: Informational
       Let MAJOR = Protocol Version Major octet
       Let MINOR = Protocol Version Minor octet
 
-      IF MINOR == 0:
+      IF MAJOR == 0:
          ReversedOrder = TRUE
-      ELSE IF MINOR == 1 AND MAJOR < 3:
+      ELSE IF MAJOR == 1 AND MINOR < 3:
          ReversedOrder = TRUE
       ELSE:
          ReversedOrder = FALSE

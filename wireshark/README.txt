@@ -1,0 +1,1 @@
+Wireshark dissector written in LUA. Put it in your plugin directory, make sure the dtls payload is unencrypted then let the magic play.
