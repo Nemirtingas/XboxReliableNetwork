@@ -11,12 +11,17 @@ local playfab = Proto("playfab", "PlayFab Protocol")
 local packet_type_str = {
     [0x02] = "PlayFab 2",
     [0x05] = "No More Traffic To Local Endpoint Being Destroyed",
+    [0x07] = "Finish Destroying Remote Device",
     [0x0d] = "Relay Autentication Response",
     [0x14] = "Remote Invitation Created",
     [0x1b] = "Remote Device Join With Direct Peer Connectivity Started",
+    [0x1c] = "Ready To Accept Direct Peer Connection",
+    [0x1d] = "Establishing Direct Peer Connection Completed",
+    [0x1e] = "Remote Device Join With Direct Peer Connectivity Completed",
     [0x21] = "Device Statistics",
     [0x25] = "No New Remote Devices Will See Endpoint",
     [0x26] = "Local XRNM Address Update",
+    [0x27] = "Remote Device Joined",
     [0x28] = "Network Configuration",
     [0x29] = "Authentication Request"
 }
@@ -24,6 +29,7 @@ local packet_type_str = {
 local init_packet_type_str = {
     [0x01] = "Direct Peer Init Request",
     [0x02] = "Init Response",
+    [0x05] = "Relay Channel Create",
     [0x06] = "Relay Init Request"
 }
 
@@ -48,8 +54,8 @@ local direct_peer_connectivity_options_login_provider_str = {
 
 local platform_type_str = {
     [0] = "None",
-	[1] = "Windows",
-	[16] = "Linux"
+    [1] = "Windows",
+    [16] = "Linux"
 }
 
 local f_packet_type = ProtoField.uint8("playfab.packet_type", "Packet type", base.DEC, packet_type_str)
@@ -57,15 +63,15 @@ local f_init_packet_type = ProtoField.uint8("playfab.init_packet_type", "Packet 
 local f_relay_authentication_result = ProtoField.uint8("playfab.relay_authentication.result", "Relay Authentication Result")
 local f_relay_authentication_entity_id = ProtoField.string("playfab.relay_authentication.entity_id", "Relay Autentication Entity Id")
 local f_entity = ProtoField.bytes("playfab.entity", "Entity")
+local f_entity_count8 = ProtoField.uint8("playfab.entity.count8", "Entity count", base.DEC)
 local f_entity_count = ProtoField.uint16("playfab.entity.count", "Entity count", base.DEC)
 local f_entity_type = ProtoField.uint8("playfab.entity.type", "Entity type", base.DEC)
 local f_session_id = ProtoField.string("playfab.session.id", "Session Id")
 local f_session_revocability = ProtoField.uint8("playfab.session.revocability", "Session Revocability", base.DEC, session_revocability_str)
 local f_entity_token = ProtoField.string("playfab.entity_token", "Entity token")
-local f_device_index = ProtoField.uint16("playfab.device.index", "Device index")
 local f_client_instance_id = ProtoField.guid("playfab.instance_id", "Instance Id")
 local f_party_id = ProtoField.guid("playfab.party_id", "Party Id")
-local f_device_id = ProtoField.guid("playfab.device", "Device Id")
+local f_device_id = ProtoField.uint16("playfab.device_id", "Device Id")
 local f_protocol_major = ProtoField.uint8("playfab.protocol.major", "Protocol Major")
 local f_protocol_minor = ProtoField.uint8("playfab.protocol.minor", "Protocol Minor")
 local f_protocol_prerelease_feature_version = ProtoField.uint16("playfab.protocol.prerelease_feature_version", "Prerelease Feature Version")
@@ -85,15 +91,18 @@ local f_max_private_endpoint_per_device = ProtoField.uint16("playfab.max_private
 local f_direct_peer_connectivity_options_platform = ProtoField.uint8("playfab.direct_peer_connectivity_options_platform", "Direct Peer Connectivity Options Platform", base.HEX, direct_peer_connectivity_options_platform_str, 0x03)
 local f_direct_peer_connectivity_options_login_provider = ProtoField.uint8("playfab.direct_peer_connectivity_options_login_provider", "Direct Peer Connectivity Options Login Provider", base.HEX, direct_peer_connectivity_options_login_provider_str, 0x0C)
 local f_endpoint_domain = ProtoField.uint16("playfab.endpoint.domain", "Endpoint Domain")
-local f_endpoint_id = ProtoField.uint8("playfab.endpoint.id", "Endpoint Id")
+local f_error = ProtoField.uint32("playfab.error", "Error")
 local f_xrnm_address_length = ProtoField.uint16("playfab.xrnm.address.length", "XRNM Address Length")
 local f_xrnm_address_value = ProtoField.string("playfab.xrnm.address.value", "XRNM Address")
+-- invitation
+local f_invitation_id = ProtoField.uint32("playfab.invitation.id", "Invitation Id")
 -- statistics
 local f_device_statistics_count = ProtoField.uint8("playfab.device_statistics.count", "Device Statistics Count")
 local f_device_count = ProtoField.uint8("playfab.device_statistics.device_count", "Device count")
 local f_device_statistic_id = ProtoField.uint8("playfab.device_statistics.statistic_id", "Statistic Id")
 local f_device_statistic_device_id = ProtoField.uint16("playfab.device_statistics.device_id", "Statistic Device Id")
 local f_device_statistic_value = ProtoField.uint64("playfab.device_statistics.statistic_value", "Statistic Value")
+local f_client_device_statistics_refresh_period = ProtoField.uint32("playfab.device_statistics.client_device_statistics_refresh_period", "Client Device Statistics Refresh Period")
 -- utils
 local f_packed_string = ProtoField.bytes("playfab.packed_string", "Packed String")
 local f_packed_string_length = ProtoField.uint8("playfab.packed_string.length", "Packed String Length")
@@ -109,17 +118,17 @@ playfab.fields = {
     f_relay_authentication_result,
     f_relay_authentication_entity_id,
     f_entity,
+    f_entity_count8,
     f_entity_count,
     f_entity_type,
     f_session_id,
     f_session_revocability,
     f_entity_token,
-    f_device_index,
     f_client_instance_id,
     f_party_id,
     f_device_id,
     f_protocol_major, f_protocol_minor, f_protocol_prerelease_feature_version,
-	f_platform_type,
+    f_platform_type,
     f_round_trip_latency,
     f_options,
     f_dtls_fingerprint,
@@ -127,9 +136,12 @@ playfab.fields = {
     f_payload_size, f_payload,
     f_max_users, f_max_devices, f_max_users_per_device, f_max_devices_per_user, f_max_public_endpoint_per_device, f_max_private_endpoint_per_device,
     f_direct_peer_connectivity_options_platform, f_direct_peer_connectivity_options_login_provider,
-    f_endpoint_domain, f_endpoint_id, f_xrnm_endpoint_length, f_xrnm_address_length, f_xrnm_address_value,
+    f_endpoint_domain, f_error,
+    f_xrnm_endpoint_length, f_xrnm_address_length, f_xrnm_address_value,
+    -- invitation
+    f_invitation_id,
     -- statistics
-    f_device_statistics_count, f_device_count, f_device_statistic_id, f_device_statistic_device_id, f_device_statistic_value,
+    f_device_statistics_count, f_device_count, f_device_statistic_id, f_device_statistic_device_id, f_device_statistic_value, f_client_device_statistics_refresh_period,
     -- utils
     f_packed_string, f_packed_string_length, f_packed_string_value,
     -- unknown
@@ -257,11 +269,11 @@ end
 
 local function playfab_2_dissector(buffer, pinfo, tree)
     local offset = 0
-		
+        
     if buffer:len() == 5 then
         local subtree = tree:add(playfab, buffer(), "PlayFab (" .. init_packet_type_str[buffer(offset, 1):uint()] .. ")")
         
-        subtree:add(f_init_packet_type, buffer(offset, 1))
+        subtree:add(f_init_packet_type, buffer(offset, 1)):set_text(init_packet_type_str[buffer(offset, 1):uint()])
         offset = offset + 1
         
         subtree:add(f_protocol_major, buffer(offset, 1))
@@ -276,10 +288,46 @@ local function playfab_2_dissector(buffer, pinfo, tree)
     else
         local subtree = tree:add(playfab, buffer(), "PlayFab (" .. packet_type_str[buffer(offset, 1):uint()] .. ")")
     
-        subtree:add(f_packet_type, buffer(offset, 1))
+        subtree:add(f_packet_type, buffer(offset, 1)):set_text(init_packet_type_str[buffer(offset, 1):uint()])
         offset = offset + 1
     
         offset = create_entity_item(buffer, offset, subtree)
+    end
+end
+
+local function playfab_5_dissector(buffer, pinfo, tree)
+    local offset = 0
+    
+    if buffer:len() == 4 then    
+        local subtree = tree:add(playfab, buffer(), "PlayFab (" .. packet_type_str[buffer(offset, 1):uint()] .. ")")
+        
+        subtree:add(f_packet_type, buffer(offset, 1)):set_text(init_packet_type_str[buffer(offset, 1):uint()])
+        offset = offset + 1
+        
+        subtree:add(f_endpoint_domain, buffer(offset, 1))
+        offset = offset + 1
+        
+        subtree:add_le(f_device_id, buffer(offset, 2))
+        offset = offset + 2
+    else
+        local subtree = tree:add(playfab, buffer(), "PlayFab (" .. init_packet_type_str[buffer(offset, 1):uint()] .. ")")
+        
+        subtree:add(f_packet_type, buffer(offset, 1)):set_text(init_packet_type_str[buffer(offset, 1):uint()])
+        offset = offset + 1
+        
+        subtree:add(f_endpoint_domain, buffer(offset, 1))
+        offset = offset + 1
+        
+        subtree:add_le(f_device_id, buffer(offset, 2))
+        offset = offset + 2
+        
+        local entity_count = buffer(offset, 1):uint()
+        subtree:add(f_entity_count8, buffer(offset, 1))
+        offset = offset + 1
+        
+        for i = 1, entity_count do
+            offset = create_entity_item(buffer, offset, subtree)
+        end
     end
 end
 
@@ -287,14 +335,14 @@ local function playfab_6_dissector(buffer, pinfo, tree)
     local offset = 0
 
     local subtree = tree:add(playfab, buffer(), "PlayFab (" .. init_packet_type_str[buffer(offset, 1):uint()] .. ")")
-	
-    subtree:add(f_init_packet_type, buffer(offset, 1))
+    
+    subtree:add(f_init_packet_type, buffer(offset, 1)):set_text(init_packet_type_str[buffer(offset, 1):uint()])
     offset = offset + 1
     
     subtree:add_le(f_party_id, buffer(offset, 16))
     offset = offset + 16
     
-    subtree:add_le(f_device_id, buffer(offset, 16))
+    subtree:add_le(f_client_instance_id, buffer(offset, 16))
     offset = offset + 16
     
     subtree:add(f_protocol_major, buffer(offset, 1))
@@ -308,38 +356,35 @@ local function playfab_6_dissector(buffer, pinfo, tree)
     
     subtree:add_le(f_platform_type, buffer(offset, 1))
     offset = offset + 1
-	
-	subtree:add_le(f_unknown_byte, buffer(offset, 1))
+    
+    subtree:add_le(f_unknown_byte, buffer(offset, 1))
     offset = offset + 1
     
-	local payload_size = buffer(offset, 2):le_uint()
-	subtree:add_le(f_payload_size, buffer(offset, 2))
+    local payload_size = buffer(offset, 2):le_uint()
+    subtree:add_le(f_payload_size, buffer(offset, 2))
     offset = offset + 2
-	
-    subtree:add(f_payload, buffer(offset, payload_size))
-	
+    
+    subtree:add(f_payload, buffer(offset, payload_size)):set_text("Payload (" .. payload_size .. " bytes)")
+    
     local decoded_tvb = base64_decode_to_tvb(buffer(offset, payload_size):string())
-	
+    
     if decoded_tvb then
-	    local decoded_buffer = decoded_tvb:range()
-		local decoded_offset = 0
+        local decoded_buffer = decoded_tvb:range()
+        local decoded_offset = 0
         local decoded_item = subtree:add(decoded_buffer, "Decoded Base64 Payload")
-		xrnm_structs.create_xrnm_address_item(decoded_buffer, decoded_offset, decoded_item)
+        xrnm_structs.create_xrnm_address_item(decoded_buffer, decoded_offset, decoded_item)
     end
 end
 
-local function no_more_traffic_to_local_endpoint_being_destroyed_dissector(buffer, pinfo, tree)
+local function finish_destroying_remote_device_dissector(buffer, pinfo, tree)
     local offset = 0
-	
+    
     local subtree = tree:add(playfab, buffer(), "PlayFab (" .. packet_type_str[buffer(offset, 1):uint()] .. ")")
     
     subtree:add(f_packet_type, buffer(offset, 1))
     offset = offset + 1
     
-    subtree:add(f_endpoint_domain, buffer(offset, 1))
-    offset = offset + 1
-    
-    subtree:add_le(f_endpoint_id, buffer(offset, 2))
+    subtree:add_le(f_device_id, buffer(offset, 2))
     offset = offset + 2
 end
 
@@ -369,7 +414,7 @@ local function remote_invitation_created_dissector(buffer, pinfo, tree)
     subtree:add(f_packet_type, buffer(offset, 1))
     offset = offset + 1
     
-    subtree:add_le(f_unknown_long, buffer(offset, 4))
+    subtree:add_le(f_invitation_id, buffer(offset, 4))
     offset = offset + 4
     
     local session_id_item = subtree:add(f_packed_string, buffer(offset, 1))
@@ -395,7 +440,7 @@ local function remote_device_join_with_direct_peer_connectivity_started_dissecto
     subtree:add(f_packet_type, buffer(offset, 1))
     offset = offset + 1
     
-    subtree:add_le(f_device_index, buffer(offset, 2))
+    subtree:add_le(f_device_id, buffer(offset, 2))
     offset = offset + 2
     
     subtree:add_le(f_client_instance_id, buffer(offset, 16))
@@ -422,12 +467,63 @@ local function remote_device_join_with_direct_peer_connectivity_started_dissecto
     subtree:add_le(f_peer_id, buffer(offset, 16))
     offset = offset + 16
     
+    local payload_size = buffer(offset, 2):le_uint()
     subtree:add_le(f_payload_size, buffer(offset, 2))
     offset = offset + 2
     
-    subtree:add_le(f_payload, buffer(offset)):set_text("Payload (" .. buffer(offset):len() .. ")")
-    offset = offset + buffer(offset):len()
+    subtree:add(f_payload, buffer(offset, payload_size)):set_text("Payload (" .. payload_size .. " bytes)")
     
+    local decoded_tvb = base64_decode_to_tvb(buffer(offset, payload_size):string())
+    
+    if decoded_tvb then
+        local decoded_buffer = decoded_tvb:range()
+        local decoded_offset = 0
+        local decoded_item = subtree:add(decoded_buffer, "Decoded Base64 Payload")
+        xrnm_structs.create_xrnm_address_item(decoded_buffer, decoded_offset, decoded_item)
+    end
+end
+
+local function ready_to_accept_direct_peer_connection_dissector(buffer, pinfo, tree)
+    local offset = 0
+    
+    local subtree = tree:add(playfab, buffer(), "PlayFab (" .. packet_type_str[buffer(offset, 1):uint()] .. ")")
+    
+    subtree:add(f_packet_type, buffer(offset, 1))
+    offset = offset + 1
+    
+    subtree:add_le(f_device_id, buffer(offset, 2))
+    offset = offset + 2
+end
+
+local function establishing_direct_peer_connection_completed_dissector(buffer, pinfo, tree)
+    local offset = 0
+    
+    local subtree = tree:add(playfab, buffer(), "PlayFab (" .. packet_type_str[buffer(offset, 1):uint()] .. ")")
+    
+    subtree:add(f_packet_type, buffer(offset, 1))
+    offset = offset + 1
+    
+    subtree:add_le(f_device_id, buffer(offset, 2))
+    offset = offset + 2
+    
+    subtree:add_le(f_error, buffer(offset, 4))
+    offset = offset + 4
+    
+end
+
+local function remote_device_join_with_direct_peer_connectivity_completed_dissector(buffer, pinfo, tree)
+    local offset = 0
+    
+    local subtree = tree:add(playfab, buffer(), "PlayFab (" .. packet_type_str[buffer(offset, 1):uint()] .. ")")
+    
+    subtree:add(f_packet_type, buffer(offset, 1))
+    offset = offset + 1
+    
+    subtree:add_le(f_device_id, buffer(offset, 2))
+    offset = offset + 2
+    
+    subtree:add_le(f_options, buffer(offset, 1))
+    offset = offset + 1
 end
 
 local function device_statistics_message_dissector(buffer, pinfo, tree)    
@@ -475,7 +571,7 @@ local function no_new_remote_devices_will_see_endpoint_message_dissector(buffer,
     subtree:add(f_endpoint_domain, buffer(offset, 1))
     offset = offset + 1
     
-    subtree:add_le(f_endpoint_id, buffer(offset, 2))
+    subtree:add_le(f_device_id, buffer(offset, 2))
     offset = offset + 2
 end
 
@@ -492,16 +588,16 @@ local function local_endpoint_update_dissector(buffer, pinfo, tree)
     offset = offset + 2
     
     subtree:add(f_xrnm_address_value, buffer(offset, address_length))
-	
-	local decoded_tvb = base64_decode_to_tvb(buffer(offset, address_length):string())
-	
+    
+    local decoded_tvb = base64_decode_to_tvb(buffer(offset, address_length):string())
+    
     if decoded_tvb then
-	    local decoded_buffer = decoded_tvb:range()
-		local decoded_offset = 0
+        local decoded_buffer = decoded_tvb:range()
+        local decoded_offset = 0
         local decoded_item = subtree:add(decoded_buffer, "Decoded Base64 Payload")
-		xrnm_structs.create_xrnm_address_item(decoded_buffer, decoded_offset, decoded_item)
+        xrnm_structs.create_xrnm_address_item(decoded_buffer, decoded_offset, decoded_item)
     end
-	
+    
     offset = offset + address_length
 end
 
@@ -535,11 +631,11 @@ local function network_configuration_dissector(buffer, pinfo, tree)
     subtree:add(f_direct_peer_connectivity_options_login_provider, buffer(offset, 1))
     offset = offset + 1
     
-    subtree:add_le(f_unknown_long, buffer(offset, 4))
-    offset = offset + 4
-    
-    subtree:add_le(f_unknown_short, buffer(offset, 2))
+    subtree:add_le(f_device_id, buffer(offset, 2))
     offset = offset + 2
+    
+    subtree:add_le(f_client_device_statistics_refresh_period, buffer(offset, 4))
+    offset = offset + 4
     
 end
 
@@ -557,25 +653,29 @@ local function authentication_request_dissector(buffer, pinfo, tree)
     offset = create_packed_string_item(buffer, offset, session_id_item, "Session Id", 0)
     
     subtree:add(f_entity_token, buffer(offset))
-	
-	local decoded_tvb = base64_decode_to_tvb(buffer(offset):string())
-	
+    
+    local decoded_tvb = base64_decode_to_tvb(buffer(offset):string())
+    
     if decoded_tvb then
-	    local decoded_buffer = decoded_tvb:range()
-		local decoded_offset = 0
+        local decoded_buffer = decoded_tvb:range()
+        local decoded_offset = 0
         local decoded_item = subtree:add(decoded_buffer, "Decoded Base64 Payload")
     end
-	
+    
     offset = offset + buffer(offset):len()
 end
 
 local handlers = {}
 handlers[0x02] = playfab_2_dissector
+handlers[0x05] = playfab_5_dissector
 handlers[0x06] = playfab_6_dissector
-handlers[0x05] = no_more_traffic_to_local_endpoint_being_destroyed_dissector
+handlers[0x07] = finish_destroying_remote_device_dissector
 handlers[0x0d] = relay_authentication_response_dissector
 handlers[0x14] = remote_invitation_created_dissector
 handlers[0x1b] = remote_device_join_with_direct_peer_connectivity_started_dissector
+handlers[0x1c] = ready_to_accept_direct_peer_connection_dissector
+handlers[0x1d] = establishing_direct_peer_connection_completed_dissector
+handlers[0x1e] = remote_device_join_with_direct_peer_connectivity_completed_dissector
 handlers[0x21] = device_statistics_message_dissector
 handlers[0x25] = no_new_remote_devices_will_see_endpoint_message_dissector
 handlers[0x26] = local_endpoint_update_dissector

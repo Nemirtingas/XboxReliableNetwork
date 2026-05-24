@@ -443,6 +443,8 @@ local function subpacket_data_dissector(buffer, subpkt_start_offset, offset, pin
     subtree:add(f_xrnm_payload, payload):set_text("Payload (" .. payload:len() .. " bytes)")
     offset = offset + payload_value
     
+	subtree:set_len(offset - subpkt_start_offset)
+	
     local playfab = Dissector.get("playfab")
     if playfab then
         playfab:call(payload:tvb(), pinfo, tree)
@@ -554,6 +556,7 @@ local function subpacket_dissector(buffer, offset, pinfo, tree)
         end
         
         offset = handler(buffer, subpkt_start_offset, offset, pinfo, tree, flags_offset, channel_size, channel_offset, sequence_offset, sequence_value, payload_offset, payload_size, payload_value, subpkt_type_offset, subpkt_type)
+		
     end
     
     return true
